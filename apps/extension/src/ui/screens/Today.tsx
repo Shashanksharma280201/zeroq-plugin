@@ -49,7 +49,7 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
 
   if (!ready) {
     return (
-      <Page title="Today" subtitle={greeting()}>
+      <Page title={greeting()} eyebrow={new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}>
         <div className="empty">
           <div className="glyph"><Icon.sun /></div>
           <h3>Outfits start with 2 pieces</h3>
@@ -67,8 +67,9 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
 
   return (
     <Page
-      title="Today"
-      subtitle={`${greeting()}. What is the plan?`}
+      title={greeting()}
+      eyebrow={new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+      subtitle="Pick the day you are having."
       trailing={<button className="icon-btn" aria-label="Show different outfits" onClick={() => setRound((r) => r + 1)}><Icon.sparkle /></button>}
     >
       <div className="chips" role="group" aria-label="Occasion">
@@ -93,16 +94,25 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
         <div className="outfit"><div className="shimmer" style={{ height: 150, borderRadius: 10 }} /><div className="shimmer" style={{ width: "50%" }} /></div>
       ) : (
         <div key={`${occasion}-${round}`}>
-          {outfits.map((o, i) => (
-            <article className="outfit" key={i}>
-              <div className="stack">
-                {o.itemIds.map((id) => byId.get(id)).filter(Boolean).map((it) => <ItemImg key={it!.id} item={it!} />)}
-              </div>
-              <div className="t">{o.title}</div>
-              <div className="w">{o.why}</div>
-              <button className="btn tinted small" onClick={() => wear(o)}>Wear this</button>
-            </article>
-          ))}
+          <div className="outfits">
+          {outfits.map((o, i) => {
+            const items = o.itemIds.map((id) => byId.get(id)).filter(Boolean).slice(0, 4) as WardrobeItem[];
+            return (
+              <article className="outfit" key={i}>
+                <div className={`flatlay n${items.length}`}>
+                  {items.map((it) => <ItemImg key={it.id} item={it} />)}
+                </div>
+                <div className="foot">
+                  <div className="grow">
+                    <div className="t">{o.title}</div>
+                    <div className="w">{o.why}</div>
+                  </div>
+                  <button className="btn tinted small" onClick={() => wear(o)}>Wear</button>
+                </div>
+              </article>
+            );
+          })}
+          </div>
           {!aiUsed && !settings?.anthropicKey && (
             <p className="hint" style={{ margin: "0 4px 24px" }}>These are quick colour and formality matches. Add an Anthropic key in Settings for a stylist that reads the occasion.</p>
           )}

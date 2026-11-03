@@ -19,6 +19,8 @@ export const Icon = {
   expand: () => (<svg viewBox="0 0 24 24" {...s}><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>),
   sparkle: () => (<svg viewBox="0 0 24 24" {...s}><path d="M12 3.5c.5 4.3 2.2 6 6.5 6.5-4.3.5-6 2.2-6.5 6.5-.5-4.3-2.2-6-6.5-6.5 4.3-.5 6-2.2 6.5-6.5Z"/><path d="M18.5 15.5c.2 1.6.9 2.3 2.5 2.5-1.6.2-2.3.9-2.5 2.5-.2-1.6-.9-2.3-2.5-2.5 1.6-.2 2.3-.9 2.5-2.5Z"/></svg>),
   search: () => (<svg viewBox="0 0 24 24" {...s} width={16} height={16}><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>),
+  copy: () => (<svg viewBox="0 0 24 24" {...s}><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/></svg>),
+  scale: () => (<svg viewBox="0 0 24 24" {...s}><path d="M12 4v16M7 20h10M5 7h14"/><path d="m5 7-2.5 6a2.5 2.5 0 0 0 5 0L5 7ZM19 7l-2.5 6a2.5 2.5 0 0 0 5 0L19 7Z"/></svg>),
   bag: () => (<svg viewBox="0 0 24 24" {...s}><path d="M5 8h14l-1 12.2a1 1 0 0 1-1 .8H7a1 1 0 0 1-1-.8L5 8Z"/><path d="M9 10V6.5a3 3 0 0 1 6 0V10"/></svg>),
 };
 
@@ -82,7 +84,7 @@ export function transition(fn: () => void) {
 
 // ---------- page with large title ----------
 
-export function Page({ title, subtitle, trailing, children }: { title: string; subtitle?: ReactNode; trailing?: ReactNode; children: ReactNode }) {
+export function Page({ title, eyebrow, subtitle, trailing, children }: { title: string; eyebrow?: string; subtitle?: ReactNode; trailing?: ReactNode; children: ReactNode }) {
   const sentinel = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -100,6 +102,7 @@ export function Page({ title, subtitle, trailing, children }: { title: string; s
         <span className="trail">{trailing}</span>
       </div>
       <div className="content">
+        {eyebrow && <div className="dateline">{eyebrow}</div>}
         <h1 className="large-title">{title}</h1>
         <div ref={sentinel} style={{ height: 1, marginTop: -17 }} />
         {subtitle && <p className="subtitle" style={{ marginTop: 6 }}>{subtitle}</p>}
@@ -231,3 +234,10 @@ export function money(n?: number, c?: string): string {
     return `${c ?? ""} ${n}`.trim();
   }
 }
+
+/** Display colours for the basic colour names used across Zero Q. */
+export const SWATCH: Record<string, string> = {
+  black: "#1d1d1f", white: "#ffffff", grey: "#8e8e93", navy: "#1f2a5a", blue: "#3a7bd5", denim: "#3d5a8a",
+  beige: "#d6c3a0", cream: "#f3ead6", brown: "#7a5232", olive: "#6b7340", green: "#3f9b5a", maroon: "#7a1f30",
+  red: "#d93a3a", pink: "#f09ab4", purple: "#8e5cc8", yellow: "#f2c94c", orange: "#f08a3a",
+};

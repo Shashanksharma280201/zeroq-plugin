@@ -3,7 +3,7 @@ import { CATEGORIES, guessColors, guessKind, type Category, type WardrobeItem } 
 import { tagPhoto } from "../../lib/ai.ts";
 import { addItem, deleteItem, updateItem } from "../../lib/db.ts";
 import { canTryOn } from "../../lib/vto.ts";
-import { Icon, ItemImg, Page, Segmented, Sheet, transition, useBlobUrl, useHud, useSettings } from "../components/kit.tsx";
+import { Icon, ItemImg, Page, SWATCH, Segmented, Sheet, transition, useBlobUrl, useHud, useSettings } from "../components/kit.tsx";
 
 type Filter = "all" | "top" | "bottom" | "outerwear" | "footwear" | "more";
 const FILTERS: Array<{ value: Filter; label: string }> = [
@@ -67,7 +67,10 @@ export function Wardrobe({ wardrobe, onTryOn }: { wardrobe: WardrobeItem[]; onTr
                 <button className="tile" key={i.id} onClick={() => setOpen(i)} style={{ viewTransitionName: `it-${i.id}` } as any}>
                   <div className="img"><ItemImg item={i} /></div>
                   <div className="name truncate">{i.name}</div>
-                  <div className="sub truncate">{i.wornCount ? `Worn ${i.wornCount}×` : i.brand ?? CAT_LABEL[i.category]}</div>
+                  <div className="swatches" aria-label={i.colors.join(", ")}>
+                    {i.colors.map((c) => <i key={c} style={{ background: SWATCH[c] ?? "var(--fill)" }} />)}
+                    <span className="sub truncate" style={{ margin: 0, padding: "0 0 0 4px" }}>{i.wornCount ? `Worn ${i.wornCount}×` : i.brand ?? CAT_LABEL[i.category]}</span>
+                  </div>
                 </button>
               ))}
             </div>

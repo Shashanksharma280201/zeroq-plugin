@@ -65,7 +65,9 @@ export function ThisItem({ wardrobe, onTryOn, goWardrobe }: { wardrobe: Wardrobe
   const { product, loading, recheck } = useActiveProduct();
   const settings = useSettings();
   const hud = useHud();
-  const check = useMemo(() => (product ? checkProduct(classifyProduct(product), wardrobe) : null), [product, wardrobe]);
+  // Once you buy it, it is in the wardrobe; never compare the item with itself.
+  const others = useMemo(() => (product ? wardrobe.filter((i) => i.sourceUrl !== product.url) : wardrobe), [product, wardrobe]);
+  const check = useMemo(() => (product ? checkProduct(classifyProduct(product), others) : null), [product, others]);
   const [take, setTake] = useState<string | null>(null);
   const [takeErr, setTakeErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -112,7 +114,9 @@ export function ThisItem({ wardrobe, onTryOn, goWardrobe }: { wardrobe: Wardrobe
   }
 
   const p = check.product;
-  const v = verdictCopy(check, wardrobe.length);
+  const v = owned
+    ? { word: "It's yours", why: `In your wardrobe since ${new Date(owned.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}. Here is what it goes with.`, tone: "buy" }
+    : verdictCopy(check, others.length);
 
   const bought = async () => {
     setAdding(true);
@@ -138,79 +142,106 @@ export function ThisItem({ wardrobe, onTryOn, goWardrobe }: { wardrobe: Wardrobe
     }
   };
 
+  const host = (() => { try { return new URL(p.url).hostname.replace(/^www\./, ""); } catch { return ""; } })();
+  const VIcon = v.tone === "buy" ? Icon.check : v.tone === "skip" ? Icon.copy : Icon.scale;
+
   return (
-    <Page title="This item">
-      <div className="product">
-        {p.images[0] ? <img className="pimg" src={p.images[0]} alt="" referrerPolicy="no-referrer" /> : <div className="pimg" />}
-        <div>
-          {p.brand && <div className="brand">{p.brand}</div>}
-          <div className="pname">{p.name}</div>
-          <div className="price">{money(p.price, p.currency)}</div>
-        </div>
-      </div>
+    <div className="item-screen">
+      <header className="item-top">
+        <span className="mark" aria-hidden>Q</span>
+        <span className="host truncate">{host}</span>
+      </header>
 
-      <section className={`verdict ${v.tone}`} key={p.url} aria-live="polite">
-        <div className="word">{v.word}</div>
-        <div className="why">{v.why}</div>
-        {settings?.anthropicKey && wardrobe.length > 0 && (
-          take ? <div className="take">{take}</div>
-            : takeErr ? <div className="take">{takeErr}</div>
-            : <div className="take loading"><div className="shimmer" style={{ width: "92%" }} /><div className="shimmer" style={{ width: "70%" }} /></div>
-        )}
-      </section>
+      <div className="content">
+        <figure className="hero" key={p.url}>
+          {p.images[0] && <img className="hero-bg" src={p.images[0]} alt="" aria-hidden referrerPolicy="no-referrer" />}
+          {p.images[0] ? <img className="hero-img" src={p.images[0]} alt={p.name} referrerPolicy="no-referrer" /> : <div className="hero-img" />}
+          <figcaption className="hero-cap">
+            <div className="grow">
+              {p.brand && <div className="brand">{p.brand}</div>}
+              <div className="pname">{p.name}</div>
+            </div>
+            {p.price != null && <div className="price">{money(p.price, p.currency)}</div>}
+          </figcaption>
+        </figure>
 
-      {check.duplicates.length > 0 && (
-        <>
-          <div className="group-header">Already in your wardrobe</div>
-          <div className="group">
-            {check.duplicates.map((d) => (
-              <div className="row thumb-row" key={d.item.id}>
-                <ItemImg item={d.item} className="thumb" />
-                <div className="grow">
-                  <div className="truncate">{d.item.name}</div>
-                  <div className="meta">{d.reason.replace("You own this: ", "")}{d.item.wornCount ? `, worn ${d.item.wornCount} times` : ""}</div>
+        <section className={`verdict ${v.tone}`} key={`v-${p.url}`} aria-live="polite">
+          <div className="v-head">
+            <span className="v-icon"><VIcon /></span>
+            <div className="grow">
+              <div className="word">{v.word}</div>
+              <div className="why">{v.why}</div>
+            </div>
+          </div>
+          {wardrobe.length > 0 && (
+            <div className="v-stats">
+              <div><b>{check.pairs.length}</b><span>{check.pairs.length === 1 ? "pairing" : "pairings"}</span></div>
+              <div><b>{check.duplicates.length}</b><span>{check.duplicates.length === 1 ? "look-alike" : "look-alikes"}</span></div>
+              <div><b>{wardrobe.length}</b><span>in wardrobe</span></div>
+            </div>
+          )}
+          {settings?.anthropicKey && wardrobe.length > 0 && (
+            take ? <div className="take"><Icon.sparkle />{take}</div>
+              : takeErr ? <div className="take">{takeErr}</div>
+              : <div className="take loading"><div className="shimmer" style={{ width: "92%" }} /><div className="shimmer" style={{ width: "70%" }} /></div>
+          )}
+        </section>
+
+        {check.duplicates.length > 0 && (
+          <>
+            <h2 className="section">Already in your wardrobe</h2>
+            <div className="group">
+              {check.duplicates.map((d) => (
+                <div className="row thumb-row" key={d.item.id}>
+                  <ItemImg item={d.item} className="thumb" />
+                  <div className="grow">
+                    <div className="truncate">{d.item.name}</div>
+                    <div className="meta">{d.reason.replace("You own this: ", "")}{d.item.wornCount ? `, worn ${d.item.wornCount} times` : ""}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {check.pairs.length > 0 && (
-        <>
-          <div className="group-header">Goes with</div>
-          <div className="rail">
-            {check.pairs.map((m) => (
-              <div className="tile" key={m.item.id} title={m.reason}>
-                <div className="img"><ItemImg item={m.item} /></div>
-                <div className="name truncate">{m.item.name}</div>
-                <div className="sub truncate">{m.reason}</div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      <div className="actions">
-        {canTryOn(p.category) && p.images[0] && (
-          <button className="btn filled block" onClick={() => onTryOn({ src: p.images[0], category: p.category, name: p.name })}>
-            <Icon.person /> Try it on
-          </button>
+              ))}
+            </div>
+          </>
         )}
-        {owned ? (
-          <button className="btn gray block" disabled>In your wardrobe</button>
-        ) : (
-          <button className="btn tinted block" onClick={bought} disabled={adding}>
-            {adding ? "Adding" : "I bought this"}
-          </button>
+
+        {check.pairs.length > 0 && (
+          <>
+            <h2 className="section">Outfits it makes</h2>
+            <div className="rail">
+              {check.pairs.map((m) => (
+                <div className="pair" key={m.item.id}>
+                  <div className="pair-imgs">
+                    {p.images[0] ? <img src={p.images[0]} alt="" referrerPolicy="no-referrer" /> : <div />}
+                    <ItemImg item={m.item} />
+                  </div>
+                  <div className="name truncate">{m.item.name}</div>
+                  <div className="sub">{cap(m.reason)}</div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
+
         {wardrobe.length < 10 && (
-          <button className="btn plain" onClick={goWardrobe}>Add your own clothes for better matches</button>
+          <button className="btn plain" style={{ display: "flex", margin: "0 auto 8px" }} onClick={goWardrobe}>Add your own clothes for better matches</button>
         )}
       </div>
-    </Page>
+
+      <div className="action-bar">
+        {canTryOn(p.category) && p.images[0] && (
+          <button className="btn gray" onClick={() => onTryOn({ src: p.images[0], category: p.category, name: p.name })}>
+            <Icon.person /> Try on
+          </button>
+        )}
+        <button className={`btn ${owned ? "done" : "filled"}`} onClick={owned ? undefined : bought} disabled={adding} aria-disabled={!!owned}>
+          {owned ? <><Icon.check /> In wardrobe</> : adding ? "Adding" : "I bought this"}
+        </button>
+      </div>
+    </div>
   );
 }
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function verdictCopy(c: ProductCheck, size: number): { word: string; why: string; tone: string } {
   if (size === 0) return { word: "Start your wardrobe", why: "Add 5 tops and 5 bottoms you own and this card tells you what pairs and what you already have.", tone: "think" };

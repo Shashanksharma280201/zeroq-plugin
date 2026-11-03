@@ -312,3 +312,68 @@ kbd { font: 500 12px/1 var(--font); padding: 3px 6px; border-radius: 5px; backgr
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
   .stage .after { clip-path: none !important; }
 }
+
+/* ================= v2: product screen ================= */
+.item-screen { min-height: 100%; display: flex; flex-direction: column; }
+.item-screen .content { flex: 1; padding-top: 4px; width: 100%; min-width: 0; }
+.item-top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 16px; background: var(--bar); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 0.5px 0 var(--sep); }
+.item-top .mark { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; background: linear-gradient(180deg, #6e6cf0, #3c38b8); color: #fff; font: 700 13px/1 var(--font-display); }
+.item-top .host { font-size: 13px; font-weight: 500; color: var(--label-2); }
+
+.hero { position: relative; margin: 12px 0 14px; height: 288px; border-radius: var(--r-xl); overflow: hidden; background: var(--surface); box-shadow: var(--shadow); isolation: isolate; animation: hero-in 0.7s var(--spring) both; }
+.hero-bg { position: absolute; inset: -40px; width: calc(100% + 80px); height: calc(100% + 80px); object-fit: cover; filter: blur(36px) saturate(160%); opacity: 0.55; transform: scale(1.1); z-index: -1; }
+.hero-img { position: absolute; inset: 16px 16px 76px; width: calc(100% - 32px); height: calc(100% - 92px); object-fit: contain; filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.12)); }
+.hero-cap { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: flex-end; gap: 12px; padding: 10px 14px; border-radius: 14px; background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: saturate(180%) blur(24px); -webkit-backdrop-filter: saturate(180%) blur(24px); box-shadow: 0 0 0 0.5px var(--sep); }
+.hero-cap .grow { flex: 1; min-width: 0; }
+.hero-cap .brand { font-size: 12px; color: var(--label-2); font-weight: 500; }
+.hero-cap .pname { font: 600 15px/1.25 var(--font-display); letter-spacing: -0.015em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hero-cap .price { font: 600 15px/1.25 var(--font-display); white-space: nowrap; font-variant-numeric: tabular-nums; }
+@keyframes hero-in { from { opacity: 0; transform: scale(0.96); } }
+
+.verdict { padding: 16px 16px 14px; }
+.v-head { position: relative; display: flex; gap: 12px; align-items: flex-start; }
+.v-icon { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #fff; background: var(--c); animation: pop 0.6s 0.15s var(--spring) both; }
+.v-icon svg { width: 24px; height: 24px; }
+.verdict .word { font-size: 22px; }
+.verdict .why { margin-top: 3px; font-size: 14px; color: var(--label-2); }
+.v-stats { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--sep); text-align: center; }
+.v-stats div + div { border-left: 0.5px solid var(--sep); }
+.v-stats b { display: block; font: 600 20px/1.1 var(--font-display); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.v-stats span { font-size: 11.5px; color: var(--label-2); }
+.verdict .take { display: flex; gap: 8px; color: var(--label); }
+.verdict .take svg { flex: none; width: 16px; height: 16px; margin-top: 2px; color: var(--tint); }
+@keyframes pop { from { transform: scale(0.4); opacity: 0; } }
+
+h2.section { font: 600 20px/1.2 var(--font-display); letter-spacing: -0.02em; margin: 6px 4px 10px; }
+
+.pair { flex: 0 0 132px; scroll-snap-align: start; display: grid; gap: 4px; }
+.pair-imgs { position: relative; height: 150px; }
+.pair-imgs > * { position: absolute; width: 84px; height: 112px; border-radius: 12px; object-fit: cover; background: var(--surface); box-shadow: 0 0 0 0.5px var(--sep), 0 6px 16px rgba(0, 0, 0, 0.1); }
+.pair-imgs > :first-child { left: 0; top: 0; transform: rotate(-4deg); }
+.pair-imgs > :last-child { right: 0; bottom: 0; transform: rotate(3deg); }
+.pair .name { font-size: 13px; font-weight: 500; padding: 0 2px; }
+.pair .sub { font-size: 12px; color: var(--label-2); padding: 0 2px; line-height: 1.3; }
+
+.action-bar { position: sticky; bottom: 0; z-index: 15; display: flex; gap: 10px; padding: 10px 16px 12px; background: var(--bar); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 -0.5px 0 var(--sep); }
+.action-bar .btn { flex: 1; height: 46px; font-size: 15px; }
+.action-bar .btn.gray { flex: 0 0 auto; padding: 0 16px; }
+.btn.done { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); cursor: default; animation: done-in 0.6s var(--spring); }
+@keyframes done-in { from { transform: scale(0.92); } }
+
+/* ================= v2: today ================= */
+.dateline { font-size: 13px; font-weight: 600; color: var(--tint); margin: 0 4px -2px; }
+.flatlay { display: grid; grid-template-columns: 1.25fr 1fr; grid-auto-rows: 1fr; gap: 6px; margin-bottom: 12px; aspect-ratio: 4 / 3.4; }
+.flatlay > * { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; background: var(--surface-2); min-height: 0; }
+.flatlay > :first-child { grid-row: span 2; }
+.flatlay.n1 { grid-template-columns: 1fr; }
+.flatlay.n3 > :first-child, .flatlay.n4 > :first-child { grid-row: span 2; }
+.flatlay.n4 { grid-template-rows: repeat(3, 1fr); }
+.flatlay.n4 > :first-child { grid-row: span 3; }
+.outfit .foot { display: flex; align-items: center; gap: 12px; }
+.outfit .foot .grow { flex: 1; min-width: 0; }
+.outfit .w { margin-bottom: 0; }
+@media (min-width: 760px) { .outfits { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; } .outfits .outfit { margin: 0; } }
+
+/* ================= v2: wardrobe tiles ================= */
+.swatches { display: flex; align-items: center; gap: 4px; padding: 0 2px; margin-top: -2px; }
+.swatches i { width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18); }
