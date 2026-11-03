@@ -1,0 +1,22 @@
+{
+  "name": "zeroq",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @zq/extension",
+    "dev": "npm run dev -w @zq/extension",
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/core && tsc -p apps/extension"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "happy-dom": "^21.0.4",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
