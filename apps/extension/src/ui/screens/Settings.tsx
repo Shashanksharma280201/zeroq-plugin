@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import type { WardrobeItem } from "@zq/core";
 import { exportAll, importAll } from "../../lib/db.ts";
-import { setSettings, type TriggerMode } from "../../lib/settings.ts";
+import { askAI } from "../../lib/ai.ts";
+import { DEFAULTS, setSettings, type AIProvider, type TriggerMode, type TryOnProvider } from "../../lib/settings.ts";
 import { Page, Segmented, useHud, useSettings } from "../components/kit.tsx";
 
 const TRIGGER_HELP: Record<TriggerMode, string> = {
@@ -66,29 +67,44 @@ export function Settings({ wardrobe, surface }: { wardrobe: WardrobeItem[]; surf
         </>
       )}
 
-      <div className="group-header">Stylist</div>
+      <div className="group-header">AI for styling and ratings</div>
+      <Segmented<AIProvider> label="AI provider" value={st.aiProvider} onChange={(v) => setSettings({ aiProvider: v })}
+        options={[{ value: "gemini", label: "Gemini" }, { value: "claude", label: "Claude" }]} />
       <div className="group">
-        <div className="row">
-          <input className="field" style={{ padding: 0 }} type={reveal ? "text" : "password"} autoComplete="off" spellCheck={false}
-            placeholder="Anthropic API key" value={st.anthropicKey} onChange={(e) => setSettings({ anthropicKey: e.target.value.trim() })} aria-label="Anthropic API key" />
-        </div>
-        <div className="row">
-          <span className="grow">Model</span>
-          <input className="field" style={{ textAlign: "right", width: "55%", padding: 0, color: "var(--label-2)" }} value={st.anthropicModel}
-            onChange={(e) => setSettings({ anthropicModel: e.target.value.trim() || "claude-sonnet-5-5" })} aria-label="Model" />
-        </div>
+        {st.aiProvider === "gemini" ? (
+          <>
+            <KeyRow label="Gemini API key" placeholder="AIza..." value={st.geminiKey} reveal={reveal} onChange={(v) => setSettings({ geminiKey: v })} />
+            <ModelRow value={st.geminiModel} fallback={DEFAULTS.geminiModel} onChange={(v) => setSettings({ geminiModel: v })} />
+          </>
+        ) : (
+          <>
+            <KeyRow label="Claude API key" placeholder="sk-ant-..." value={st.anthropicKey} reveal={reveal} onChange={(v) => setSettings({ anthropicKey: v })} />
+            <ModelRow value={st.anthropicModel} fallback={DEFAULTS.anthropicModel} onChange={(v) => setSettings({ anthropicModel: v })} />
+          </>
+        )}
+        <TestRow kind="ai" />
       </div>
-      <p className="group-footer">Reads your photos, writes the take on each product and plans outfits. Without a key you still get colour and duplicate matching.</p>
+      <p className="group-footer">{st.aiProvider === "gemini"
+        ? "Get a key at aistudio.google.com/apikey. Turn on billing: on the free tier Google may use what you send, including your photos, to train its models."
+        : "Get a key at console.anthropic.com. Billed by use, separate from a Claude subscription."} Without a key you still get colour and duplicate matching.</p>
 
       <div className="group-header">Try-on</div>
+      <Segmented<TryOnProvider> label="Try-on provider" value={st.tryOnProvider} onChange={(v) => setSettings({ tryOnProvider: v })}
+        options={[{ value: "gemini", label: "Gemini" }, { value: "fashn", label: "FASHN" }]} />
       <div className="group">
-        <div className="row">
-          <input className="field" style={{ padding: 0 }} type={reveal ? "text" : "password"} autoComplete="off" spellCheck={false}
-            placeholder="FASHN API key" value={st.fashnKey} onChange={(e) => setSettings({ fashnKey: e.target.value.trim() })} aria-label="FASHN API key" />
-        </div>
+        {st.tryOnProvider === "gemini" ? (
+          <>
+            {!st.geminiKey && <KeyRow label="Gemini API key" placeholder="AIza..." value={st.geminiKey} reveal={reveal} onChange={(v) => setSettings({ geminiKey: v })} />}
+            <ModelRow value={st.geminiImageModel} fallback={DEFAULTS.geminiImageModel} onChange={(v) => setSettings({ geminiImageModel: v })} />
+          </>
+        ) : (
+          <KeyRow label="FASHN API key" placeholder="FASHN API key" value={st.fashnKey} reveal={reveal} onChange={(v) => setSettings({ fashnKey: v })} />
+        )}
         <button className="row" onClick={() => setReveal((r) => !r)}><span className="grow" style={{ color: "var(--tint)" }}>{reveal ? "Hide keys" : "Show keys"}</span></button>
       </div>
-      <p className="group-footer">Keys stay in this browser and are sent only to Anthropic and FASHN. Get one at console.anthropic.com and app.fashn.ai.</p>
+      <p className="group-footer">{st.tryOnProvider === "gemini"
+        ? "Uses the same Gemini key. Image editing needs billing on; about 4 to 7 cents an image. Other models to try: gemini-nano-banana-2.1, gemini-3-pro-image."
+        : "Purpose-built try-on that keeps your face and body intact. Get a key at app.fashn.ai, about 7.5 cents an image."} Keys stay in this browser.</p>
 
       <div className="group-header">Your data</div>
       <div className="group">
@@ -102,5 +118,46 @@ export function Settings({ wardrobe, surface }: { wardrobe: WardrobeItem[]; surf
       }} />
       <p className="group-footer">Everything lives in this Chrome profile. Back up before removing the extension.</p>
     </Page>
+  );
+}
+
+function KeyRow({ label, placeholder, value, reveal, onChange }: { label: string; placeholder: string; value: string; reveal: boolean; onChange: (v: string) => void }) {
+  return (
+    <div className="row">
+      <input className="field" style={{ padding: 0 }} type={reveal ? "text" : "password"} autoComplete="off" spellCheck={false}
+        placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value.trim())} aria-label={label} />
+    </div>
+  );
+}
+
+function ModelRow({ value, fallback, onChange }: { value: string; fallback: string; onChange: (v: string) => void }) {
+  return (
+    <div className="row">
+      <span className="grow">Model</span>
+      <input className="field" style={{ textAlign: "right", width: "62%", padding: 0, color: "var(--label-2)" }} value={value} spellCheck={false}
+        onChange={(e) => onChange(e.target.value.trim() || fallback)} aria-label="Model" />
+    </div>
+  );
+}
+
+/** One tiny request so you know the key and model work before onboarding. */
+function TestRow({ kind }: { kind: "ai" }) {
+  const [state, setState] = useState<{ busy: boolean; msg?: string; ok?: boolean }>({ busy: false });
+  const run = async () => {
+    setState({ busy: true });
+    try {
+      const t = await askAI("Reply with exactly the word: ready", [{ type: "text", text: "Are you there?" }], { maxTokens: 20 });
+      setState({ busy: false, ok: true, msg: `Connected. It said "${t.trim().slice(0, 40)}".` });
+    } catch (e: any) {
+      setState({ busy: false, ok: false, msg: e.message ?? String(e) });
+    }
+  };
+  return (
+    <button className="row" onClick={run} disabled={state.busy} data-kind={kind}>
+      <span className="grow">
+        <span style={{ color: "var(--tint)" }}>{state.busy ? "Testing" : "Test connection"}</span>
+        {state.msg && <div className="meta" style={{ color: state.ok ? "var(--good)" : "var(--bad)" }}>{state.msg}</div>}
+      </span>
+    </button>
   );
 }

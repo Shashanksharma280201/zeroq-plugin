@@ -1,3 +1,4 @@
+import { aiReady } from "../../lib/settings.ts";
 import { useEffect, useState } from "react";
 import { buildOutfits, occasionFormality, type Outfit, type WardrobeItem } from "@zq/core";
 import { planOutfits, wardrobeGaps } from "../../lib/ai.ts";
@@ -34,7 +35,7 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
     setErr(null);
     const occ = custom.trim() || occasion;
     const offline = () => buildOutfits(wardrobe, { formality: occasionFormality(occ), count: 3 });
-    if (!settings.anthropicKey) {
+    if (!aiReady(settings)) {
       setOutfits(offline());
       setAiUsed(false);
       return;
@@ -45,7 +46,7 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
     return () => {
       live = false;
     };
-  }, [occasion, round, ready, settings?.anthropicKey, wardrobe.length]);
+  }, [occasion, round, ready, aiReady(settings), wardrobe.length]);
 
   if (!ready) {
     return (
@@ -113,13 +114,13 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
             );
           })}
           </div>
-          {!aiUsed && !settings?.anthropicKey && (
-            <p className="hint" style={{ margin: "0 4px 24px" }}>These are quick colour and formality matches. Add an Anthropic key in Settings for a stylist that reads the occasion.</p>
+          {!aiUsed && !aiReady(settings) && (
+            <p className="hint" style={{ margin: "0 4px 24px" }}>These are quick colour and formality matches. Add a Gemini or Claude key in Settings for a stylist that reads the occasion.</p>
           )}
         </div>
       )}
 
-      {settings?.anthropicKey && wardrobe.length >= 6 && (
+      {aiReady(settings) && wardrobe.length >= 6 && (
         <>
           <div className="group-header">What to buy next</div>
           <div className="group">

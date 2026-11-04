@@ -1,3 +1,4 @@
+import { aiReady } from "../../lib/settings.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIES, guessColors, guessKind, type Category, type WardrobeItem } from "@zq/core";
 import { tagPhoto } from "../../lib/ai.ts";
@@ -123,7 +124,7 @@ function AddSheet({ open, onClose, defaultCategory }: { open: boolean; onClose: 
         key: crypto.randomUUID(),
         file,
         url: URL.createObjectURL(file),
-        status: settings?.anthropicKey ? "tagging" : "ready",
+        status: aiReady(settings) ? "tagging" : "ready",
         name: /^(img|dsc|pxl|photo|image|screenshot)/i.test(base) ? "" : base,
         category: k.category !== "other" ? k.category : defaultCategory ?? "top",
         kind: k.kind,
@@ -132,7 +133,7 @@ function AddSheet({ open, onClose, defaultCategory }: { open: boolean; onClose: 
       };
     });
     setDrafts((d) => [...d, ...fresh]);
-    if (!settings?.anthropicKey) return;
+    if (!aiReady(settings)) return;
     // Tag a few at a time so the first results land quickly.
     const queue = [...fresh];
     const worker = async () => {
@@ -187,8 +188,8 @@ function AddSheet({ open, onClose, defaultCategory }: { open: boolean; onClose: 
         <p style={{ margin: "0 0 14px", color: "var(--label-2)" }}>One item per photo, on a bed or a hanger, in daylight. Drop photos here or choose them.</p>
         <button className="btn filled small" onClick={() => input.current?.click()}>Choose photos</button>
       </div>
-      {settings && !settings.anthropicKey && drafts.length > 0 && (
-        <p className="hint" style={{ margin: "-12px 4px 16px" }}>Without an Anthropic key, check the type and colour of each one yourself.</p>
+      {settings && !aiReady(settings) && drafts.length > 0 && (
+        <p className="hint" style={{ margin: "-12px 4px 16px" }}>Without an AI key, check the type and colour of each one yourself.</p>
       )}
       {drafts.length > 0 && (
         <div className="group">

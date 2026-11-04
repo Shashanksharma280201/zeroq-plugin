@@ -1,3 +1,4 @@
+import { aiReady, PROVIDER_NAME } from "../../lib/settings.ts";
 import { useEffect, useRef, useState } from "react";
 import type { WardrobeItem } from "@zq/core";
 import { srcToBlob } from "../../lib/images.ts";
@@ -27,7 +28,7 @@ export function RatingPanel({
 
   useEffect(() => {
     setErr(null);
-    if (!profile || !settings?.anthropicKey) return;
+    if (!profile || !aiReady(settings)) return;
     if (cache.has(src) && !nonce) {
       const r = cache.get(src)!;
       setRating(r);
@@ -52,7 +53,7 @@ export function RatingPanel({
     return () => {
       live = false;
     };
-  }, [src, profile?.createdAt, settings?.anthropicKey, nonce]);
+  }, [src, profile?.createdAt, aiReady(settings), nonce]);
 
   if (profile === undefined || !settings) return null;
 
@@ -69,11 +70,11 @@ export function RatingPanel({
     );
   }
 
-  if (!settings.anthropicKey) {
+  if (!aiReady(settings)) {
     return (
       <section className="rate-card empty-rate">
         <Icon.face />
-        <div className="grow"><div style={{ fontWeight: 600 }}>Add your Claude key</div><div className="meta">Rating needs it. Settings, Stylist.</div></div>
+        <div className="grow"><div style={{ fontWeight: 600 }}>Add your {PROVIDER_NAME[settings.aiProvider]} key</div><div className="meta">Rating needs it. Settings, AI.</div></div>
       </section>
     );
   }

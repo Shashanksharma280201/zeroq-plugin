@@ -1,5 +1,5 @@
 import type { WardrobeItem } from "@zq/core";
-import { askClaude, imagePart, parseJson, type Content } from "./ai.ts";
+import { askAI, imagePart, parseJson, type Content } from "./ai.ts";
 import { getBlob, putBlob, deleteBlob } from "./db.ts";
 import { downscale } from "./images.ts";
 
@@ -142,7 +142,7 @@ Return JSON with exactly these keys:
  "avatar": {"skin": hex close to my skin tone, "hair": hex, "hairStyle": buzz|short|wavy|long|bun|curly|covered, "facialHair": none|stubble|beard, "glasses": true|false, "build": slim|average|athletic|broad|curvy, "height": short|average|tall, "top": hex of my signature top colour, "bottom": hex, "shoes": hex, "topStyle": tee|shirt|kurta|jacket, "bottomStyle": trousers|jeans|skirt|shorts}
 }`,
   });
-  const raw = parseJson<any>(await askClaude(PROFILER, content, 1600));
+  const raw = parseJson<any>(await askAI(PROFILER, content, { maxTokens: 1600, json: true }));
   return normaliseProfile(raw, answers, photos.length);
 }
 
@@ -204,7 +204,7 @@ export async function rateItem(opts: {
   const p = opts.profile;
   const frame = p.answers.useFrame ? `Frame: ${p.frame}. Flatters: ${p.flatters.join("; ")}.` : "Do not use body or frame in the rating.";
   const wardrobe = opts.wardrobe.slice(0, 80).map((i) => `${i.id}: ${i.name} (${i.category}, ${i.colors.join("+") || "?"})`).join("\n");
-  const text = await askClaude(
+  const text = await askAI(
     RATER,
     [
       await imagePart(opts.image, 896),
@@ -236,7 +236,7 @@ Return JSON:
  "watchOut": optional one sentence}`,
       },
     ],
-    900,
+    { maxTokens: 900, json: true },
   );
   return normaliseRating(parseJson<any>(text), new Set(opts.wardrobe.map((i) => i.id)));
 }

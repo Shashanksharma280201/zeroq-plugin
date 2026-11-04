@@ -1,3 +1,4 @@
+import { aiReady } from "../../lib/settings.ts";
 import { useEffect, useMemo, useState } from "react";
 import { checkProduct, classifyProduct, type DetectedProduct, type ProductCheck, type WardrobeItem } from "@zq/core";
 import { productTake } from "../../lib/ai.ts";
@@ -85,7 +86,7 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
   useEffect(() => {
     setTake(null);
     setTakeErr(null);
-    if (!check || !settings?.anthropicKey || wardrobe.length === 0) return;
+    if (!check || !aiReady(settings) || wardrobe.length === 0) return;
     const k = `${check.product.url}|${wardrobe.length}`;
     if (takeCache.has(k)) return setTake(takeCache.get(k)!);
     let live = true;
@@ -98,7 +99,7 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
     return () => {
       live = false;
     };
-  }, [check?.product.url, wardrobe.length, settings?.anthropicKey]);
+  }, [check?.product.url, wardrobe.length, aiReady(settings)]);
 
   if (pick && showPick) {
     const host = (() => { try { return new URL(pick.url).hostname.replace(/^www\./, ""); } catch { return ""; } })();
@@ -220,7 +221,7 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
               <div><b>{wardrobe.length}</b><span>in wardrobe</span></div>
             </div>
           )}
-          {settings?.anthropicKey && wardrobe.length > 0 && (
+          {aiReady(settings) && wardrobe.length > 0 && (
             take ? <div className="take"><Icon.sparkle />{take}</div>
               : takeErr ? <div className="take">{takeErr}</div>
               : <div className="take loading"><div className="shimmer" style={{ width: "92%" }} /><div className="shimmer" style={{ width: "70%" }} /></div>

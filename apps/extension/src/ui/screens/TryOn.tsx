@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Category } from "@zq/core";
 import { getBlob, putBlob } from "../../lib/db.ts";
 import { downscale, srcToBlob } from "../../lib/images.ts";
-import { MODEL_PHOTO_KEY, setSettings } from "../../lib/settings.ts";
+import { MODEL_PHOTO_KEY, setSettings, tryOnReady } from "../../lib/settings.ts";
 import { tryOn } from "../../lib/vto.ts";
 import { Icon, Sheet, useBlobUrl, useSettings } from "../components/kit.tsx";
 
@@ -69,7 +69,7 @@ export function TryOnSheet({ garment, onClose }: { garment: Garment | null; onCl
     }
   };
 
-  const ready = !!settings?.fashnKey && !!me;
+  const ready = tryOnReady(settings) && !!me;
 
   const onDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!result || (e.buttons !== 1 && e.pointerType === "mouse")) return;
@@ -104,7 +104,7 @@ export function TryOnSheet({ garment, onClose }: { garment: Garment | null; onCl
 
           {result && <p className="note">Shows colour and shape on you. Check the fit in a trial room.</p>}
           {err && <p className="error">{err}</p>}
-          {!settings?.fashnKey && <p className="hint" style={{ margin: "0 4px 16px" }}>Try-on uses FASHN. Add your FASHN API key in Settings, about $0.075 per image.</p>}
+          {settings && !tryOnReady(settings) && <p className="hint" style={{ margin: "0 4px 16px" }}>{settings.tryOnProvider === "fashn" ? "Try-on is set to FASHN. Add your FASHN API key in Settings." : "Try-on uses Gemini. Add your Gemini API key in Settings (billing must be on for image editing)."}</p>}
 
           <div className="actions two">
             <button className="btn gray" onClick={() => pick.current?.click()}>Change photo</button>

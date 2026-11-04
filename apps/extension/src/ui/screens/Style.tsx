@@ -3,9 +3,9 @@ import {
   buildProfile, clearProfile, getOutfitPhotos, saveOutfitPhotos, saveProfile,
   type Answers, type Avatar as AvatarT, type StyleProfile,
 } from "../../lib/profile.ts";
-import { setSettings } from "../../lib/settings.ts";
+import { aiReady, setSettings, type AIProvider } from "../../lib/settings.ts";
 import { Avatar } from "../components/Avatar.tsx";
-import { Icon, Page, Switch, transition, useHud, useProfile, useSettings } from "../components/kit.tsx";
+import { Icon, Page, Segmented, Switch, transition, useHud, useProfile, useSettings } from "../components/kit.tsx";
 
 const PLACEHOLDER: AvatarT = {
   skin: "#d9d4cf", hair: "#b9b3ad", hairStyle: "short", facialHair: "none", glasses: false, build: "average", height: "average",
@@ -156,17 +156,25 @@ function QuestionStep({ answers, setAnswers, err, onBack, onBuild, count }: { an
         </div>
       </div>
 
-      {st && !st.anthropicKey && (
+      {st && !aiReady(st) && (
         <>
-          <div className="group-header">Your Claude API key</div>
+          <div className="group-header">Your AI key</div>
+          <Segmented<AIProvider> label="AI provider" value={st.aiProvider} onChange={(v) => setSettings({ aiProvider: v })}
+            options={[{ value: "gemini", label: "Gemini" }, { value: "claude", label: "Claude" }]} />
           <div className="group">
-            <input className="field" type="password" placeholder="sk-ant-..." autoComplete="off" onChange={(e) => setSettings({ anthropicKey: e.target.value.trim() })} aria-label="Claude API key" />
+            {st.aiProvider === "gemini" ? (
+              <input key="g" className="field" type="password" placeholder="Gemini API key, starts with AIza" autoComplete="off" onChange={(e) => setSettings({ geminiKey: e.target.value.trim() })} aria-label="Gemini API key" />
+            ) : (
+              <input key="c" className="field" type="password" placeholder="Claude API key, starts with sk-ant-" autoComplete="off" onChange={(e) => setSettings({ anthropicKey: e.target.value.trim() })} aria-label="Claude API key" />
+            )}
           </div>
-          <p className="group-footer">Claude reads your photos. The key stays in this browser. Get one at console.anthropic.com.</p>
+          <p className="group-footer">{st.aiProvider === "gemini"
+            ? "Gemini reads your photos. Get a key at aistudio.google.com/apikey and turn on billing, so Google does not use your photos for training. The key stays in this browser."
+            : "Claude reads your photos. Get a key at console.anthropic.com. The key stays in this browser."}</p>
         </>
       )}
       {err && <p className="error">{err}</p>}
-      <div className="onb-cta"><button className="btn filled block" disabled={!st?.anthropicKey} onClick={onBuild}>Read my {count} outfits</button></div>
+      <div className="onb-cta"><button className="btn filled block" disabled={!aiReady(st)} onClick={onBuild}>Read my {count} outfits</button></div>
     </div>
   );
 }

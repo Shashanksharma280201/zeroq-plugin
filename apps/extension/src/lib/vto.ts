@@ -1,10 +1,12 @@
 import type { Category } from "@zq/core";
-import { blobToDataUrl, downscale } from "./images.ts";
+import { geminiCall } from "./ai.ts";
+import { blobToBase64, blobToDataUrl, downscale } from "./images.ts";
 import { getSettings } from "./settings.ts";
 
 /**
- * Virtual try-on through FASHN (https://docs.fashn.ai), with your own key.
- * Submit to /v1/run, then poll /v1/status/{id}.
+ * Virtual try-on with your own key, through either
+ *  - Gemini image editing (Nano Banana, default): one call, returns an image, or
+ *  - FASHN (https://docs.fashn.ai): purpose-built try-on; submit to /v1/run, poll /v1/status/{id}.
  * Shows colour and silhouette. It says nothing about fit.
  */
 
@@ -19,13 +21,61 @@ export function vtoCategory(c: Category): "tops" | "bottoms" | "one-pieces" | "a
 
 export const canTryOn = (c: Category) => c === "top" || c === "bottom" || c === "one-piece" || c === "outerwear";
 
-export async function tryOn(opts: {
+interface TryOnOpts {
   person: Blob;
   garment: Blob;
   category: Category;
   signal?: AbortSignal;
   onStatus?: (s: string) => void;
-}): Promise<string> {
+}
+
+/** Returns an image URL (https: for FASHN, data: for Gemini). */
+export async function tryOn(opts: TryOnOpts): Promise<string> {
+  const s = await getSettings();
+  return s.tryOnProvider === "fashn" ? fashnTryOn(opts) : geminiTryOn(opts);
+}
+
+const PART: Record<string, string> = {
+  top: "top (shirt, t-shirt, kurta or similar)",
+  outerwear: "outer layer (jacket, overshirt or similar), worn over what they have on",
+  bottom: "bottoms (trousers, jeans, skirt or similar)",
+  "one-piece": "whole outfit (dress, jumpsuit or similar), replacing both top and bottom",
+};
+
+async function geminiTryOn(opts: TryOnOpts): Promise<string> {
+  const { geminiKey, geminiImageModel } = await getSettings();
+  if (!geminiKey) throw new Error("Add your Gemini API key in Settings to use try-on.");
+  opts.onStatus?.("Dressing you");
+  const [person, garment] = await Promise.all([downscale(opts.person, 1024), downscale(opts.garment, 1024)]);
+  if (opts.signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+  const cand = await geminiCall(geminiKey, geminiImageModel, {
+    contents: [{
+      role: "user",
+      parts: [
+        { text: "Image 1 is a photo of me." },
+        { inlineData: { mimeType: person.type || "image/jpeg", data: await blobToBase64(person) } },
+        { text: "Image 2 is a clothing item from a shop." },
+        { inlineData: { mimeType: garment.type || "image/jpeg", data: await blobToBase64(garment) } },
+        {
+          text: `Edit image 1 so I am wearing the item from image 2 as my ${PART[opts.category] ?? "clothing"}.
+Keep my face, hair, skin tone, body shape, pose, background and lighting exactly as they are. Change only that piece of clothing.
+Reproduce the item's colour, pattern, fabric texture and details faithfully, draped naturally on my body. If image 2 shows a model, take only the garment, never the model.
+Photorealistic. Return only the edited photo.`,
+        },
+      ],
+    }],
+    generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+  });
+  const img = (cand.content?.parts ?? []).find((p: any) => p.inlineData?.data || p.inline_data?.data);
+  const d = img?.inlineData ?? img?.inline_data;
+  if (!d) {
+    const said = (cand.content?.parts ?? []).map((p: any) => p.text).filter(Boolean).join(" ");
+    throw new Error(said ? `Gemini did not return a photo: ${said.slice(0, 160)}` : "Gemini did not return a photo. Try a clearer photo of the item.");
+  }
+  return `data:${d.mimeType ?? d.mime_type ?? "image/png"};base64,${d.data}`;
+}
+
+async function fashnTryOn(opts: TryOnOpts): Promise<string> {
   const { fashnKey } = await getSettings();
   if (!fashnKey) throw new Error("Add your FASHN API key in Settings to use try-on.");
   const headers = { "content-type": "application/json", authorization: `Bearer ${fashnKey}` };

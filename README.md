@@ -6,14 +6,14 @@ On any product page it tells you whether the item goes with what you own, warns 
 
 ## Features
 
-- **Style profile.** Show Claude 5 favourite outfits, head to toe, and answer three taps. It reads your colours, undertone, what you repeat and avoid, and (if you allow it) your frame, then draws your animated style character. Nothing about your body is asked.
+- **Style profile.** Show the AI 5 favourite outfits, head to toe, and answer three taps. It reads your colours, undertone, what you repeat and avoid, and (if you allow it) your frame, then draws your animated style character. Nothing about your body is asked.
 - **Rate anything.** Right-click any clothing photo on any site and choose *Rate this for me*, or press `Alt+Shift+X` and click it. You get a 0 to 100 score with colour, shape and style breakdowns, what it goes with in your wardrobe, and where to wear it. A small card with the score pins next to the photo; the full read opens in the side panel. Product pages are scored automatically.
 
 - **Product check.** Works on Myntra, Ajio, Zara, H&M, Shopify stores and most others by reading the product data stores publish for Google Shopping. No per-site code.
 - **Duplicate warning.** "You have this" when the item matches something in your wardrobe by type and colour.
 - **Goes with.** Things you own that pair with the item, scored on colour harmony and how dressy each piece is.
-- **Stylist (optional).** With an Anthropic key: a short honest take on each product, photo tagging when you add clothes, outfits for any occasion, and the gaps in your wardrobe.
-- **Try-on (optional).** With a FASHN key: see the item on your photo, with a drag to compare. Colour and silhouette only, never fit.
+- **Stylist (optional).** With a Gemini or Claude key: a short honest take on each product, photo tagging when you add clothes, outfits for any occasion, and the gaps in your wardrobe.
+- **Try-on (optional).** With Gemini (default) or FASHN: see the item on your photo, with a drag to compare. Colour and silhouette only, never fit.
 - **Wardrobe.** Start with 5 tops and 5 bottoms. "I bought this" on a product page adds it with its photo.
 
 ## How it shows up
@@ -39,12 +39,20 @@ Open `chrome://extensions`, turn on Developer mode, click **Load unpacked** and 
 
 For development, `npm run dev` rebuilds on save; click the reload icon on the extension card after changes to the background or content script.
 
-## Keys
+## Keys and providers
 
-Both are optional and live only in this browser's extension storage. They are sent only to their own provider.
+All keys are optional and live only in this browser's extension storage. Each is sent only to its own provider. Pick providers in Settings.
 
-- Anthropic: console.anthropic.com. Model defaults to `claude-sonnet-5-5`, changeable in Settings.
-- FASHN: app.fashn.ai. Uses `tryon-v1.6`, about $0.075 per image.
+| Job | Default | Alternative |
+| --- | --- | --- |
+| Profile, ratings, tagging, outfits | Gemini `gemini-3.8-flash` | Claude `claude-sonnet-5-5` |
+| Try-on | Gemini `gemini-3.1-flash-image` (same key) | FASHN `tryon-v1.6` |
+
+- Gemini: aistudio.google.com/apikey. Turn on billing; on the free tier Google may use inputs for training, and image editing is paid only.
+- Claude: console.anthropic.com.
+- FASHN: app.fashn.ai.
+
+Model IDs are editable in Settings because providers rename them. See [TESTING.md](TESTING.md) for a step-by-step test.
 
 ## Data
 
