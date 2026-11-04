@@ -1,4 +1,3 @@
-import { useId } from "react";
 import type { Avatar as A } from "../../lib/profile.ts";
 
 /**
@@ -8,7 +7,6 @@ import type { Avatar as A } from "../../lib/profile.ts";
  * Pass `wear` to preview an item's colour on the right part of the body.
  */
 export function Avatar({ a, mood = "idle", wear, size = 220 }: { a: A; mood?: "idle" | "wave" | "think"; wear?: { category: string; hex: string }; size?: number }) {
-  const id = useId().replace(/:/g, "");
   const top = wear && /top|outerwear|one-piece/.test(wear.category) ? wear.hex : a.top;
   const bottom = wear && wear.category === "bottom" ? wear.hex : wear?.category === "one-piece" ? wear.hex : a.bottom;
   const shoes = wear?.category === "footwear" ? wear.hex : a.shoes;
@@ -25,10 +23,6 @@ export function Avatar({ a, mood = "idle", wear, size = 220 }: { a: A; mood?: "i
 
   return (
     <svg className={`avatar mood-${mood}`} viewBox="0 0 200 360" width={size} height={size * 1.8} role="img" aria-label="Your style character">
-      <defs>
-        <linearGradient id={`t${id}`} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={shade(top, 0.08)} /><stop offset="1" stopColor={shade(top, -0.12)} /></linearGradient>
-        <linearGradient id={`b${id}`} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={shade(bottom, 0.05)} /><stop offset="1" stopColor={shade(bottom, -0.15)} /></linearGradient>
-      </defs>
       <ellipse className="av-shadow" cx="100" cy="336" rx="52" ry="7" fill="currentColor" opacity="0.12" />
       <g className="av-body" style={{ transform: `scaleY(${hScale})` }}>
         {/* legs */}
@@ -39,7 +33,7 @@ export function Avatar({ a, mood = "idle", wear, size = 220 }: { a: A; mood?: "i
           </g>
         ) : null}
         {!dress && (a.bottomStyle === "trousers" || a.bottomStyle === "jeans") && (
-          <g fill={`url(#b${id})`}>
+          <g fill={bottom}>
             <rect x={100 - legW - 2} y="186" width={legW} height="140" rx="9" />
             <rect x="102" y="186" width={legW} height="140" rx="9" />
             <rect x={100 - hip / 2} y="182" width={hip} height="30" rx="10" />
@@ -47,11 +41,11 @@ export function Avatar({ a, mood = "idle", wear, size = 220 }: { a: A; mood?: "i
           </g>
         )}
         {!dress && a.bottomStyle === "shorts" && (
-          <g fill={`url(#b${id})`}>
+          <g fill={bottom}>
             <rect x={100 - hip / 2} y="182" width={hip} height="56" rx="10" />
           </g>
         )}
-        {!dress && a.bottomStyle === "skirt" && <path d={`M${100 - hip / 2} 184 L${100 + hip / 2} 184 L${100 + hip / 2 + 16} 258 Q100 266 ${100 - hip / 2 - 16} 258 Z`} fill={`url(#b${id})`} />}
+        {!dress && a.bottomStyle === "skirt" && <path d={`M${100 - hip / 2} 184 L${100 + hip / 2} 184 L${100 + hip / 2 + 16} 258 Q100 266 ${100 - hip / 2 - 16} 258 Z`} fill={bottom} />}
         {/* shoes */}
         <g fill={shoes}>
           <ellipse cx={100 - legW / 2 - 4} cy="328" rx={legW / 2 + 7} ry="7" />
@@ -65,7 +59,7 @@ export function Avatar({ a, mood = "idle", wear, size = 220 }: { a: A; mood?: "i
         {/* torso */}
         <path
           d={`M${L + 4} 102 Q100 94 ${R - 4} 102 Q${R + 2} 104 ${R} 120 L${dress ? R + 18 : 100 + hip / 2 + 2} ${topLen} Q100 ${topLen + 6} ${dress ? L - 18 : 100 - hip / 2 - 2} ${topLen} L${L} 120 Q${L - 2} 104 ${L + 4} 102 Z`}
-          fill={`url(#t${id})`}
+          fill={top}
         />
         {a.topStyle === "shirt" && !dress && <path d={`M100 104 V${topLen - 6}`} stroke={shade(top, -0.2)} strokeWidth="1" />}
         {a.topStyle === "shirt" && !dress && <path d="M90 100 L100 112 L110 100" fill="none" stroke={shade(top, 0.3)} strokeWidth="2" strokeLinejoin="round" />}

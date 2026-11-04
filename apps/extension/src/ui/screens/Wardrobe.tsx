@@ -180,12 +180,12 @@ function AddSheet({ open, onClose, defaultCategory }: { open: boolean; onClose: 
       <input ref={input} type="file" accept="image/*" multiple hidden onChange={(e) => e.target.files && take(e.target.files)} />
       <div
         className="group"
-        style={{ padding: 24, textAlign: "center", outline: over ? "2px dashed var(--tint)" : "none", transition: "outline .2s" }}
+        style={{ padding: 24, textAlign: "center", outline: over ? "2px dashed var(--text)" : "none", transition: "outline .2s" }}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }}
         onDragLeave={() => setOver(false)}
         onDrop={(e) => { e.preventDefault(); setOver(false); take(e.dataTransfer.files); }}
       >
-        <p style={{ margin: "0 0 14px", color: "var(--label-2)" }}>One item per photo, on a bed or a hanger, in daylight. Drop photos here or choose them.</p>
+        <p style={{ margin: "0 0 14px", color: "var(--muted)" }}>One item per photo, on a bed or a hanger, in daylight. Drop photos here or choose them.</p>
         <button className="btn filled small" onClick={() => input.current?.click()}>Choose photos</button>
       </div>
       {settings && !aiReady(settings) && drafts.length > 0 && (
@@ -198,11 +198,11 @@ function AddSheet({ open, onClose, defaultCategory }: { open: boolean; onClose: 
               <img className="thumb" src={d.url} alt="" style={{ width: 56, height: 72 }} />
               <div className="grow" style={{ display: "grid", gap: 6 }}>
                 {d.status === "tagging" ? (
-                  <><div className="shimmer" style={{ width: "70%" }} /><div className="shimmer" style={{ width: "40%" }} /></>
+                  <><div className="skeleton" style={{ width: "70%" }} /><div className="skeleton" style={{ width: "40%" }} /></>
                 ) : (
                   <>
                     <input className="field" style={{ padding: 0, minHeight: 24, fontWeight: 500 }} value={d.name} placeholder="Name, like Navy oxford shirt" onChange={(e) => patch(d.key, { name: e.target.value })} aria-label="Name" />
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", color: "var(--label-2)", fontSize: 13 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", color: "var(--muted)", fontSize: 13 }}>
                       <select className="field" style={{ padding: 0, minHeight: 22, textAlign: "left", width: "auto" }} value={d.category} onChange={(e) => patch(d.key, { category: e.target.value as Category })} aria-label="Type">
                         {CATEGORIES.map((c) => <option key={c} value={c}>{CAT_LABEL[c]}</option>)}
                       </select>
@@ -211,7 +211,7 @@ function AddSheet({ open, onClose, defaultCategory }: { open: boolean; onClose: 
                   </>
                 )}
               </div>
-              <button className="icon-btn" aria-label="Remove" style={{ color: "var(--label-3)" }} onClick={() => setDrafts((ds) => ds.filter((x) => x.key !== d.key))}>✕</button>
+              <button className="icon-btn" aria-label="Remove" style={{ color: "var(--faint)" }} onClick={() => setDrafts((ds) => ds.filter((x) => x.key !== d.key))}>✕</button>
             </div>
           ))}
         </div>
@@ -234,7 +234,7 @@ function ItemSheet({ item, onClose, onTryOn }: { item: WardrobeItem | null; onCl
   };
   return (
     <Sheet open={!!item} onClose={onClose} title={CAT_LABEL[it.category]}>
-      <div className="stage" style={{ aspectRatio: "4 / 5" }}>{url && <img src={url} alt="" />}</div>
+      <div className="stage" style={{ aspectRatio: "auto", height: "min(52vh, 380px)" }}>{url && <img src={url} alt="" />}</div>
       <div className="group">
         <div className="row"><input className="field" style={{ padding: 0, fontWeight: 600, fontSize: 17 }} value={it.name} onChange={(e) => set({ name: e.target.value })} aria-label="Name" /></div>
         <div className="row"><span className="grow">Type</span>
@@ -243,10 +243,10 @@ function ItemSheet({ item, onClose, onTryOn }: { item: WardrobeItem | null; onCl
           </select>
         </div>
         <div className="row"><span className="grow">Colours</span>
-          <input className="field" style={{ textAlign: "right", width: "55%", padding: 0, color: "var(--label-2)" }} value={it.colors.join(", ")} onChange={(e) => set({ colors: e.target.value.split(/[,\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean) })} />
+          <input className="field" style={{ textAlign: "right", width: "55%", padding: 0, color: "var(--muted)" }} value={it.colors.join(", ")} onChange={(e) => set({ colors: e.target.value.split(/[,\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean) })} />
         </div>
         <div className="row"><span className="grow">Brand</span>
-          <input className="field" style={{ textAlign: "right", width: "55%", padding: 0, color: "var(--label-2)" }} value={it.brand ?? ""} placeholder="Optional" onChange={(e) => set({ brand: e.target.value || undefined })} />
+          <input className="field" style={{ textAlign: "right", width: "55%", padding: 0, color: "var(--muted)" }} value={it.brand ?? ""} placeholder="Optional" onChange={(e) => set({ brand: e.target.value || undefined })} />
         </div>
       </div>
       <div className="group-header">How dressy</div>
@@ -254,7 +254,7 @@ function ItemSheet({ item, onClose, onTryOn }: { item: WardrobeItem | null; onCl
         options={[{ value: "1", label: "Lounge" }, { value: "2", label: "Casual" }, { value: "3", label: "Smart" }, { value: "4", label: "Work" }, { value: "5", label: "Formal" }] as any} />
       <div className="group">
         <div className="row"><span className="grow">Worn</span><span className="value">{it.wornCount ? `${it.wornCount} times${it.lastWornAt ? `, last on ${new Date(it.lastWornAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}` : "Not yet"}</span></div>
-        {it.sourceUrl && <a className="row" href={it.sourceUrl} target="_blank" rel="noreferrer" style={{ color: "var(--tint)", textDecoration: "none" }}><span className="grow">Open the store page</span><span className="chev">›</span></a>}
+        {it.sourceUrl && <a className="row" href={it.sourceUrl} target="_blank" rel="noreferrer" ><span className="grow link">Open the store page</span><span className="chev">›</span></a>}
       </div>
       <div className="actions">
         {canTryOn(it.category) && <button className="btn filled block" onClick={() => onTryOn(it)}><Icon.person /> Try it on</button>}

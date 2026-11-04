@@ -97,7 +97,17 @@ export function transition(fn: () => void) {
 
 // ---------- page with large title ----------
 
-export function Page({ title, eyebrow, subtitle, trailing, children }: { title: string; eyebrow?: string; subtitle?: ReactNode; trailing?: ReactNode; children: ReactNode }) {
+/** The Zero Q mark: a Q drawn as one ring and a short stroke. */
+export function ZQMark({ size = 22 }: { size?: number }) {
+  return (
+    <svg className="zq-mark" viewBox="0 0 24 24" width={size} height={size} aria-hidden fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
+      <circle cx="11" cy="11" r="7.5" />
+      <path d="M15.6 15.6 20.5 20.5" />
+    </svg>
+  );
+}
+
+export function Page({ title, serif, subtitle, trailing, children }: { title: string; serif?: boolean; subtitle?: ReactNode; trailing?: ReactNode; children: ReactNode }) {
   const sentinel = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -115,10 +125,9 @@ export function Page({ title, eyebrow, subtitle, trailing, children }: { title: 
         <span className="trail">{trailing}</span>
       </div>
       <div className="content">
-        {eyebrow && <div className="dateline">{eyebrow}</div>}
-        <h1 className="large-title">{title}</h1>
-        <div ref={sentinel} style={{ height: 1, marginTop: -17 }} />
-        {subtitle && <p className="subtitle" style={{ marginTop: 6 }}>{subtitle}</p>}
+        <h1 className={serif ? "greeting" : "large-title"}>{title}</h1>
+        <div ref={sentinel} style={{ height: 1, marginTop: -1 }} />
+        {subtitle && <p className="subtitle">{subtitle}</p>}
         {children}
       </div>
     </>

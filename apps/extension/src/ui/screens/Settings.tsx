@@ -32,7 +32,7 @@ export function Settings({ wardrobe, surface }: { wardrobe: WardrobeItem[]; surf
       {surface === "sidepanel" && (
         <div className="group">
           <button className="row" onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("app.html") })}>
-            <span className="grow" style={{ color: "var(--tint)" }}>Open wardrobe in a tab</span><span className="chev">›</span>
+            <span className="grow link">Open wardrobe in a tab</span><span className="chev">›</span>
           </button>
         </div>
       )}
@@ -49,7 +49,7 @@ export function Settings({ wardrobe, surface }: { wardrobe: WardrobeItem[]; surf
       <div className="group">
         <div className="row"><span className="grow">Open on any page</span><kbd>Alt</kbd><kbd>Shift</kbd><kbd>Z</kbd></div>
         <button className="row" onClick={() => chrome.tabs.create({ url: "chrome://extensions/shortcuts" })}>
-          <span className="grow" style={{ color: "var(--tint)" }}>Change shortcut</span><span className="chev">›</span>
+          <span className="grow link">Change shortcut</span><span className="chev">›</span>
         </button>
       </div>
 
@@ -100,7 +100,7 @@ export function Settings({ wardrobe, surface }: { wardrobe: WardrobeItem[]; surf
         ) : (
           <KeyRow label="FASHN API key" placeholder="FASHN API key" value={st.fashnKey} reveal={reveal} onChange={(v) => setSettings({ fashnKey: v })} />
         )}
-        <button className="row" onClick={() => setReveal((r) => !r)}><span className="grow" style={{ color: "var(--tint)" }}>{reveal ? "Hide keys" : "Show keys"}</span></button>
+        <button className="row" onClick={() => setReveal((r) => !r)}><span className="grow link">{reveal ? "Hide keys" : "Show keys"}</span></button>
       </div>
       <p className="group-footer">{st.tryOnProvider === "gemini"
         ? "Uses the same Gemini key. Image editing needs billing on; about 4 to 7 cents an image. Other models to try: gemini-nano-banana-2.1, gemini-3-pro-image."
@@ -108,8 +108,8 @@ export function Settings({ wardrobe, surface }: { wardrobe: WardrobeItem[]; surf
 
       <div className="group-header">Your data</div>
       <div className="group">
-        <button className="row" onClick={backup}><span className="grow" style={{ color: "var(--tint)" }}>Back up wardrobe</span><span className="value">{wardrobe.length} pieces</span></button>
-        <button className="row" onClick={() => file.current?.click()}><span className="grow" style={{ color: "var(--tint)" }}>Restore from backup</span></button>
+        <button className="row" onClick={backup}><span className="grow link">Back up wardrobe</span><span className="value">{wardrobe.length} pieces</span></button>
+        <button className="row" onClick={() => file.current?.click()}><span className="grow link">Restore from backup</span></button>
       </div>
       <input ref={file} type="file" accept="application/json" hidden onChange={async (e) => {
         const f = e.target.files?.[0];
@@ -134,7 +134,7 @@ function ModelRow({ value, fallback, onChange }: { value: string; fallback: stri
   return (
     <div className="row">
       <span className="grow">Model</span>
-      <input className="field" style={{ textAlign: "right", width: "62%", padding: 0, color: "var(--label-2)" }} value={value} spellCheck={false}
+      <input className="field" style={{ textAlign: "right", width: "62%", padding: 0, color: "var(--muted)" }} value={value} spellCheck={false}
         onChange={(e) => onChange(e.target.value.trim() || fallback)} aria-label="Model" />
     </div>
   );
@@ -155,8 +155,8 @@ function TestRow({ kind }: { kind: "ai" }) {
   return (
     <button className="row" onClick={run} disabled={state.busy} data-kind={kind}>
       <span className="grow">
-        <span style={{ color: "var(--tint)" }}>{state.busy ? "Testing" : "Test connection"}</span>
-        {state.msg && <div className="meta" style={{ color: state.ok ? "var(--good)" : "var(--bad)" }}>{state.msg}</div>}
+        <span className="link">{state.busy ? "Testing" : "Test connection"}</span>
+        {state.msg && <div className="meta" style={{ color: state.ok ? "var(--positive)" : "var(--negative)" }}>{state.msg}</div>}
       </span>
     </button>
   );

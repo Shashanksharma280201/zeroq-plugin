@@ -6,7 +6,7 @@ import type { ToBackground, ToContent } from "./lib/messages.ts";
  * The rating comes back as a small card pinned to the photo.
  */
 
-const SPRING = "linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.4%, 1.067, 1.099 24.3%, 1.108 26%, 1.103, 1.085 31.2%, 1.006 39.7%, 0.991 43.6%, 0.983 46.9%, 0.988 54.5%, 1.001 68.2%, 1)";
+const SETTLE = "cubic-bezier(.32,.72,0,1)";
 
 let host: HTMLElement | null = null;
 let root: ShadowRoot;
@@ -22,35 +22,30 @@ function ensureHost() {
   root.innerHTML = `
 <style>
   * { box-sizing: border-box; }
-  .ring { position: fixed; border-radius: 14px; box-shadow: 0 0 0 3px #5e5ce6, 0 0 0 9999px rgba(0,0,0,.28); opacity: 0; transition: left .28s ${SPRING}, top .28s ${SPRING}, width .28s ${SPRING}, height .28s ${SPRING}, opacity .2s; pointer-events: none; }
+  :host { --ink: #1f201d; --muted: #5f605c; --surface: #ffffff; --line: rgba(0,0,0,.08); --track: #efefec; }
+  .ring { position: fixed; border-radius: 12px; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1f201d, 0 0 0 9999px rgba(0,0,0,.32); opacity: 0;
+    transition: left .2s ${SETTLE}, top .2s ${SETTLE}, width .2s ${SETTLE}, height .2s ${SETTLE}, opacity .15s; pointer-events: none; }
   .ring.on { opacity: 1; }
-  .ring span { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); padding: 7px 14px; border-radius: 16px; background: rgba(94,92,230,.92); color: #fff; font: 600 13px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; white-space: nowrap; }
-  .hint { position: fixed; left: 50%; top: 18px; transform: translate(-50%, -80px); display: flex; gap: 10px; align-items: center; padding: 10px 16px; border-radius: 22px;
-    font: 500 14px/1.2 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; color: #1d1d1f; letter-spacing: -.01em;
-    background: rgba(250,250,252,.82); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 0 0 .5px rgba(0,0,0,.12), 0 10px 30px rgba(0,0,0,.16);
-    transition: transform .6s ${SPRING}; }
+  .ring span { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; background: #1f201d; color: #fff; font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; white-space: nowrap; }
+  .hint, .card { color: var(--ink); background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 12px 32px rgba(0,0,0,.18); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; letter-spacing: -.01em; }
+  .hint { position: fixed; left: 50%; top: 16px; transform: translate(-50%, -80px); display: flex; gap: 10px; align-items: center; padding: 10px 12px 10px 16px; border-radius: 999px; font-size: 14px; font-weight: 500; transition: transform .4s ${SETTLE}; }
   .hint.on { transform: translate(-50%, 0); }
-  .hint kbd { font: 500 12px/1 inherit; padding: 3px 6px; border-radius: 5px; background: rgba(120,120,128,.16); }
-  .card { position: fixed; width: 260px; padding: 14px; border-radius: 18px; pointer-events: auto; color: #1d1d1f;
-    font: 400 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; letter-spacing: -.01em;
-    background: rgba(250,250,252,.86); backdrop-filter: saturate(180%) blur(24px); -webkit-backdrop-filter: saturate(180%) blur(24px); box-shadow: 0 0 0 .5px rgba(0,0,0,.12), 0 16px 40px rgba(0,0,0,.2);
-    opacity: 0; transform: translateY(8px) scale(.94); transform-origin: top left; transition: opacity .25s, transform .6s ${SPRING}; }
+  .hint kbd { font: 500 12px/1 inherit; padding: 4px 7px; border-radius: 6px; background: var(--track); }
+  .card { position: fixed; width: 264px; padding: 14px; border-radius: 18px; pointer-events: auto; font-size: 13px; line-height: 1.38;
+    opacity: 0; transform: translateY(6px); transition: opacity .2s, transform .35s ${SETTLE}; }
   .card.on { opacity: 1; transform: none; }
   .row { display: flex; gap: 12px; align-items: center; }
-  .score { position: relative; width: 56px; height: 56px; flex: none; }
-  .score svg { width: 56px; height: 56px; transform: rotate(-90deg); }
-  .score b { position: absolute; inset: 0; display: grid; place-items: center; font: 700 18px/1 -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
-  .score .arc { transition: stroke-dashoffset 1.1s cubic-bezier(.22,1,.36,1); }
-  .verdict { font: 700 16px/1.15 -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif; letter-spacing: -.02em; }
-  .head { color: rgba(60,60,67,.7); margin-top: 3px; }
-  .spin { width: 56px; height: 56px; border-radius: 50%; border: 4px solid rgba(120,120,128,.18); border-top-color: #5e5ce6; animation: spin 0.9s linear infinite; flex: none; }
+  .score { position: relative; width: 52px; height: 52px; flex: none; }
+  .score svg { width: 52px; height: 52px; transform: rotate(-90deg); }
+  .score b { position: absolute; inset: 0; display: grid; place-items: center; font: 600 17px/1 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+  .score .arc { transition: stroke-dashoffset .9s cubic-bezier(.22,1,.36,1); }
+  .verdict { font-weight: 600; font-size: 16px; line-height: 1.2; letter-spacing: -.02em; }
+  .head { color: var(--muted); margin-top: 3px; }
+  .spin { width: 52px; height: 52px; border-radius: 50%; border: 4px solid var(--track); border-top-color: var(--ink); animation: spin .9s linear infinite; flex: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .x { all: unset; cursor: pointer; position: absolute; top: 8px; right: 10px; color: rgba(60,60,67,.5); font-size: 14px; }
-  .more { all: unset; cursor: pointer; display: block; margin-top: 10px; color: #5e5ce6; font-weight: 600; }
-  @media (prefers-color-scheme: dark) {
-    .hint, .card { color: #f5f5f7; background: rgba(36,36,38,.86); box-shadow: 0 0 0 .5px rgba(255,255,255,.12), 0 16px 40px rgba(0,0,0,.5); }
-    .head, .x { color: rgba(235,235,245,.6); } .more { color: #8f8cff; }
-  }
+  .x { all: unset; cursor: pointer; position: absolute; top: 8px; right: 10px; color: var(--muted); font-size: 13px; padding: 4px; }
+  .more { all: unset; cursor: pointer; display: inline-block; margin-top: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+  @media (prefers-color-scheme: dark) { :host { --ink: #ffffff; --muted: #b4b4b4; --surface: #1c1c1c; --line: rgba(255,255,255,.1); --track: #2a2a2a; } }
   @media (prefers-reduced-motion: reduce) { * { transition-duration: .01s !important; animation-duration: 2s !important; } }
 </style>
 <div class="ring"><span>Rate this</span></div>
@@ -152,7 +147,7 @@ function place() {
   c.style.top = `${top}px`;
 }
 
-const tone = (s: number) => (s >= 75 ? "#30b158" : s >= 55 ? "#5e5ce6" : "#ff9f0a");
+const tone = (s: number) => (s >= 75 ? "#2e7d32" : s >= 55 ? "currentColor" : "#b42318");
 
 export function showCard(m: Extract<ToContent, { type: "rating" }>) {
   ensureHost();
@@ -163,7 +158,7 @@ export function showCard(m: Extract<ToContent, { type: "rating" }>) {
   }
   if (!pinned) return;
   const c = card();
-  const C = 2 * Math.PI * 24;
+  const C = 2 * Math.PI * 22;
   if (m.state === "working") {
     c.innerHTML = `<div class="row"><div class="spin"></div><div><div class="verdict">Looking at it</div><div class="head">Checking colour, shape and your style.</div></div></div>`;
   } else if (m.state === "error") {
@@ -171,9 +166,9 @@ export function showCard(m: Extract<ToContent, { type: "rating" }>) {
   } else {
     const s = m.score ?? 0;
     c.innerHTML = `<button class="x" aria-label="Close">✕</button>
-<div class="row"><div class="score"><svg viewBox="0 0 56 56"><circle cx="28" cy="28" r="24" fill="none" stroke="rgba(120,120,128,.18)" stroke-width="5"/><circle class="arc" cx="28" cy="28" r="24" fill="none" stroke="${tone(s)}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></svg><b>0</b></div>
-<div><div class="verdict" style="color:${tone(s)}">${esc(m.verdict ?? "")}</div><div class="head">${esc(m.headline ?? "")}</div></div></div>
-<button class="more">See why in Zero Q</button>`;
+<div class="row"><div class="score"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="22" fill="none" stroke="var(--track)" stroke-width="5"/><circle class="arc" cx="26" cy="26" r="22" fill="none" stroke="${tone(s)}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></svg><b>0</b></div>
+<div><div class="verdict" style="color:${s >= 55 ? "inherit" : tone(s)}">${esc(m.verdict ?? "")}</div><div class="head">${esc(m.headline ?? "")}</div></div></div>
+<button class="more">See why</button>`;
     requestAnimationFrame(() => {
       (c.querySelector(".arc") as SVGCircleElement).style.strokeDashoffset = String(C * (1 - s / 100));
       countUp(c.querySelector(".score b") as HTMLElement, s);

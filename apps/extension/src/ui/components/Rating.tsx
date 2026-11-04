@@ -95,9 +95,12 @@ export function RatingPanel({
         <div className="rc-top">
           <div className="rc-avatar"><Avatar a={profile.avatar} mood="think" size={80} /></div>
           <div className="grow">
-            <div className="rc-verdict" style={{ color: "var(--label-2)" }}>Thinking about it</div>
-            <div className="shimmer" style={{ width: "90%" }} />
-            <div className="shimmer" style={{ width: "60%" }} />
+            <div className="rc-row">
+              <div className="ring"><svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" className="ring-track" /></svg></div>
+              <div className="rc-verdict">Looking at it</div>
+            </div>
+            <div className="skeleton" style={{ width: "92%", marginTop: 12 }} />
+            <div className="skeleton" style={{ width: "64%" }} />
           </div>
         </div>
       </section>
@@ -107,12 +110,13 @@ export function RatingPanel({
   return <RatingResult r={rating} profile={profile} wardrobe={wardrobe} onTryOn={onTryOn} onRedo={() => setNonce((n) => n + 1)} />;
 }
 
-const tone = (s: number) => (s >= 75 ? "var(--good)" : s >= 55 ? "var(--tint)" : "var(--warn)");
+const band = (s: number) => (s >= 75 ? "good" : s >= 55 ? "mid" : "low");
+const barColour = (s: number) => (s >= 75 ? "var(--positive)" : s >= 55 ? "var(--text)" : "var(--negative)");
 
 function RatingResult({ r, profile, wardrobe, onTryOn, onRedo }: { r: Rating; profile: StyleProfile; wardrobe: WardrobeItem[]; onTryOn?: (c: string) => void; onRedo: () => void }) {
   const pairs = r.wardrobe.pairsWith.map((id) => wardrobe.find((w) => w.id === id)).filter(Boolean) as WardrobeItem[];
   return (
-    <section className="rate-card" style={{ "--c": tone(r.score) } as any}>
+    <section className={`rate-card ${band(r.score)}`}>
       <div className="rc-top">
         <div className="rc-avatar"><Avatar a={profile.avatar} wear={{ category: r.item.category, hex: r.item.hex }} size={80} /></div>
         <div className="grow">
@@ -125,7 +129,9 @@ function RatingResult({ r, profile, wardrobe, onTryOn, onRedo }: { r: Rating; pr
       </div>
 
       <div className="rc-bars">
-        <Bar label="Colour on you" part={r.colour} />
+        <Bar label="Colour on you" part={r.colour}>
+          <PaletteFit palette={profile.palette.best} item={r.item.hex} name={r.item.color} />
+        </Bar>
         <Bar label="Shape for you" part={r.shape} />
         <Bar label="Your style" part={r.style} />
       </div>
@@ -183,7 +189,7 @@ function ScoreRing({ value }: { value: number }) {
   );
 }
 
-function Bar({ label, part }: { label: string; part: { score: number; note: string } }) {
+function Bar({ label, part, children }: { label: string; part: { score: number; note: string }; children?: React.ReactNode }) {
   const [w, setW] = useState(0);
   useEffect(() => {
     const t = requestAnimationFrame(() => setW(part.score));
@@ -192,8 +198,42 @@ function Bar({ label, part }: { label: string; part: { score: number; note: stri
   return (
     <div className="rc-bar">
       <div className="rc-bar-top"><span>{label}</span><b>{part.score}</b></div>
-      <div className="track"><i style={{ transform: `scaleX(${w / 100})`, background: tone(part.score) }} /></div>
+      <div className="track"><i style={{ transform: `scaleX(${w / 100})`, ["--bar" as any]: barColour(part.score) }} /></div>
+      {children}
       <div className="rc-note">{part.note}</div>
     </div>
   );
+}
+
+/**
+ * The item's colour set beside your palette: your best colours as dots, the
+ * nearest one ringed when it is close, the item's own colour at the end.
+ */
+function PaletteFit({ palette, item, name }: { palette: Array<{ name: string; hex: string }>; item: string; name: string }) {
+  if (!palette.length) return null;
+  const d = palette.map((p) => deltaE(p.hex, item));
+  const min = Math.min(...d);
+  const near = min < 18 ? d.indexOf(min) : -1;
+  return (
+    <div className="pal-fit" aria-label={near >= 0 ? `${name} is close to your ${palette[near].name}` : `${name} is not in your palette`}>
+      {palette.map((p, i) => <i key={p.hex + i} className={i === near ? "near" : ""} style={{ background: p.hex }} title={p.name} />)}
+      <i className="item" style={{ background: item }} title={name} />
+      <span>{near >= 0 ? `near your ${palette[near].name.toLowerCase()}` : "outside your palette"}</span>
+    </div>
+  );
+}
+
+/** CIE76 distance in Lab: under about 18 reads as the same family of colour. */
+function deltaE(a: string, b: string): number {
+  const [l1, a1, b1] = lab(a);
+  const [l2, a2, b2] = lab(b);
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+function lab(hex: string): [number, number, number] {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v > 0.04045 ? ((v + 0.055) / 1.055) ** 2.4 : v / 12.92));
+  const x = (c[0] * 0.4124 + c[1] * 0.3576 + c[2] * 0.1805) / 0.95047;
+  const y = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+  const z = (c[0] * 0.0193 + c[1] * 0.1192 + c[2] * 0.9505) / 1.08883;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
 }

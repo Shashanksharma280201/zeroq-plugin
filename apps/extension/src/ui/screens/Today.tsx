@@ -7,6 +7,8 @@ import { Icon, ItemImg, Page, useHud, useSettings } from "../components/kit.tsx"
 
 const OCCASIONS = ["Everyday", "Office", "Stand out at work", "Date night", "Weekend brunch", "Wedding", "Travel"];
 
+const today = () => new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+
 function greeting() {
   const h = new Date().getHours();
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
@@ -46,11 +48,11 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
     return () => {
       live = false;
     };
-  }, [occasion, round, ready, aiReady(settings), wardrobe.length]);
+  }, [occasion, round, ready, settings == null, settings?.aiProvider, aiReady(settings), wardrobe.length]);
 
   if (!ready) {
     return (
-      <Page title={greeting()} eyebrow={new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}>
+      <Page title={greeting()} serif subtitle={today()}>
         <div className="empty">
           <div className="glyph"><Icon.sun /></div>
           <h3>Outfits start with 2 pieces</h3>
@@ -69,8 +71,8 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
   return (
     <Page
       title={greeting()}
-      eyebrow={new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
-      subtitle="Pick the day you are having."
+      serif
+      subtitle={`${today()}. What is today for?`}
       trailing={<button className="icon-btn" aria-label="Show different outfits" onClick={() => setRound((r) => r + 1)}><Icon.sparkle /></button>}
     >
       <div className="chips" role="group" aria-label="Occasion">
@@ -92,7 +94,7 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
       {err && <p className="error">{err} Showing quick picks instead.</p>}
 
       {!outfits ? (
-        <div className="outfit"><div className="shimmer" style={{ height: 150, borderRadius: 10 }} /><div className="shimmer" style={{ width: "50%" }} /></div>
+        <div className="outfit"><div className="skeleton" style={{ height: 220, borderRadius: 14, margin: 0 }} /><div className="skeleton" style={{ width: "50%" }} /></div>
       ) : (
         <div key={`${occasion}-${round}`}>
           <div className="outfits">
@@ -131,7 +133,7 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
                 setGapsBusy(true);
                 try { setGaps(await wardrobeGaps(wardrobe)); } catch (e: any) { hud(e.message, "err"); } finally { setGapsBusy(false); }
               }}>
-                <span className="grow" style={{ color: "var(--tint)" }}>{gapsBusy ? "Looking through your wardrobe" : "Find the gaps in my wardrobe"}</span>
+                <span className="grow link">{gapsBusy ? "Looking through your wardrobe" : "Find the gaps in my wardrobe"}</span>
                 <span className="chev">›</span>
               </button>
             )}

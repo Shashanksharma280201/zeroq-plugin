@@ -21,6 +21,7 @@ const ctx = await esbuild.context({
   minify: !watch,
   sourcemap: watch ? "inline" : false,
   loader: { ".css": "css" },
+  external: ["/fonts/*"],
   define: { "process.env.NODE_ENV": watch ? '"development"' : '"production"' },
   logLevel: "info",
 });

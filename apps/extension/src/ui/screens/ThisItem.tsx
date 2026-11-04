@@ -8,7 +8,7 @@ import type { Pick, TabState } from "../../lib/messages.ts";
 import type { StyleProfile } from "../../lib/profile.ts";
 import { RatingPanel } from "../components/Rating.tsx";
 import { canTryOn } from "../../lib/vto.ts";
-import { Icon, ItemImg, Page, money, useHud, useSettings } from "../components/kit.tsx";
+import { Icon, ItemImg, Page, ZQMark, money, useHud, useSettings } from "../components/kit.tsx";
 
 function useActiveProduct(): { product: DetectedProduct | null; pick: Pick | null; tabId?: number; loading: boolean; recheck: () => void; clearPick: () => void } {
   const [tabId, setTabId] = useState<number>();
@@ -106,18 +106,17 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
     return (
       <div className="item-screen">
         <header className="item-top">
-          <span className="mark" aria-hidden>Q</span>
+          <ZQMark size={20} />
           <span className="host truncate grow">{host}</span>
-          <button className="btn plain small" onClick={() => { setShowPick(false); if (!product) clearPick(); }}>{product ? "Back to page item" : "Done"}</button>
+          <button className="btn plain small" style={{ textDecoration: "none" }} onClick={() => { setShowPick(false); if (!product) clearPick(); }}>{product ? "Page item" : "Done"}</button>
         </header>
         <div className="content">
-          <figure className="hero" key={`hero-${pick.src}`}>
-            <img className="hero-bg" src={pick.src} alt="" aria-hidden referrerPolicy="no-referrer" />
-            <img className="hero-img" src={pick.src} alt={pick.alt ?? "Picked item"} referrerPolicy="no-referrer" style={{ inset: 16, height: "calc(100% - 32px)" }} />
+          <figure className="hero solo" key={`hero-${pick.src}`}>
+            <img className="hero-img" src={pick.src} alt={pick.alt ?? "Picked item"} referrerPolicy="no-referrer" />
           </figure>
           <RatingPanel key={`rate-${pick.src}`} src={pick.src} title={pick.title} url={pick.url} hint={pick.alt} profile={profile} wardrobe={wardrobe} tabId={tabId}
             goStyle={goStyle} onTryOn={(category) => onTryOn({ src: pick.src, category: category as any, name: pick.alt || "this item" })} />
-          <p className="hint" style={{ textAlign: "center", margin: "4px 0 24px" }}>Rate another: right-click any photo, or <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>X</kbd></p>
+          <p className="hint" style={{ margin: "0 4px 24px" }}>Rate another: right-click any photo, or press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>X</kbd> and click it.</p>
         </div>
       </div>
     );
@@ -126,8 +125,11 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
   if (loading && !product) {
     return (
       <Page title="This item">
-        <div className="shimmer" style={{ height: 128, borderRadius: 16 }} />
-        <div className="shimmer" style={{ height: 96, borderRadius: 22, marginTop: 16 }} />
+        <div style={{ display: "grid", gridTemplateColumns: "112px 1fr", gap: 14, alignItems: "end", margin: "12px 0 20px" }}>
+          <div className="skeleton" style={{ height: 149, borderRadius: 14, margin: 0 }} />
+          <div><div className="skeleton" style={{ width: "40%" }} /><div className="skeleton" style={{ width: "90%", height: 16 }} /><div className="skeleton" style={{ width: "30%" }} /></div>
+        </div>
+        <div className="skeleton" style={{ height: 180, borderRadius: 22 }} />
       </Page>
     );
   }
@@ -138,10 +140,10 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
         <div className="empty">
           <div className="glyph"><Icon.bag /></div>
           <h3>Open a product page</h3>
-          <p>Go to any item on Myntra, Ajio, Zara, H&amp;M or a brand's own store. Or point at any clothing photo: right-click it and choose Rate this for me, or press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>X</kbd>.</p>
+          <p>Open any item on Myntra, Ajio, Zara or a brand's own store, or point at a clothing photo anywhere to get its score.</p>
           <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-            <button className="btn tinted small" onClick={recheck}>Check this page</button>
-            {tabId != null && <button className="btn gray small" onClick={() => chrome.tabs.sendMessage(tabId, { type: "pick-start" }).catch(() => {})}><Icon.target /> Point at an item</button>}
+            {tabId != null && <button className="btn filled small" onClick={() => chrome.tabs.sendMessage(tabId, { type: "pick-start" }).catch(() => {})}><Icon.target /> Point at an item</button>}
+            <button className="btn gray small" onClick={recheck}>Check this page</button>
           </div>
         </div>
       </Page>
@@ -178,88 +180,100 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
   };
 
   const host = (() => { try { return new URL(p.url).hostname.replace(/^www\./, ""); } catch { return ""; } })();
-  const VIcon = v.tone === "buy" ? Icon.check : v.tone === "skip" ? Icon.copy : Icon.scale;
+  // When a style score is possible it answers the screen's question, so it leads
+  // and the wardrobe check becomes its supporting section. Without one, the
+  // wardrobe verdict is the answer and gets the card.
+  const scored = !!profile && aiReady(settings) && !!p.images[0];
+  const dup = check.duplicates[0];
+
+  const pairsRail = check.pairs.length > 0 && (
+    <div className="rail">
+      {check.pairs.map((m) => (
+        <div className="pair" key={m.item.id}>
+          <div className="pair-imgs">
+            {p.images[0] ? <img src={p.images[0]} alt="" referrerPolicy="no-referrer" /> : <div />}
+            <ItemImg item={m.item} />
+          </div>
+          <div className="name truncate">{m.item.name}</div>
+          <div className="sub">{cap(m.reason)}</div>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div className="item-screen">
       <header className="item-top">
-        <span className="mark" aria-hidden>Q</span>
-        <span className="host truncate">{host}</span>
+        <ZQMark size={20} />
+        <span className="host truncate grow">{host}</span>
       </header>
 
       <div className="content">
         <figure className="hero" key={p.url}>
-          {p.images[0] && <img className="hero-bg" src={p.images[0]} alt="" aria-hidden referrerPolicy="no-referrer" />}
           {p.images[0] ? <img className="hero-img" src={p.images[0]} alt={p.name} referrerPolicy="no-referrer" /> : <div className="hero-img" />}
           <figcaption className="hero-cap">
-            <div className="grow">
-              {p.brand && <div className="brand">{p.brand}</div>}
-              <div className="pname">{p.name}</div>
-            </div>
+            {p.brand && <div className="brand">{p.brand}</div>}
+            <div className="pname">{p.name}</div>
             {p.price != null && <div className="price">{money(p.price, p.currency)}</div>}
           </figcaption>
         </figure>
 
-        {p.images[0] && (
-          <RatingPanel key={`rate-${p.images[0]}`} src={p.images[0]} title={p.name} url={p.url} hint={[p.brand, p.name].filter(Boolean).join(" ")} profile={profile} wardrobe={others} tabId={tabId}
-            goStyle={goStyle} />
-        )}
-
-        <h2 className="section">Against your wardrobe</h2>
-        <section className={`verdict ${v.tone}`} key={`v-${p.url}`} aria-live="polite">
-          <div className="v-head">
-            <span className="v-icon"><VIcon /></span>
-            <div className="grow">
+        {scored ? (
+          <>
+            <RatingPanel key={`rate-${p.images[0]}`} src={p.images[0]} title={p.name} url={p.url} hint={[p.brand, p.name].filter(Boolean).join(" ")} profile={profile} wardrobe={others} tabId={tabId}
+              goStyle={goStyle} />
+            <div className="wcheck">
+              <h2 className="section">{owned ? "It's in your wardrobe" : "With your wardrobe"}</h2>
+              {others.length > 0 && <span className="meta">{check.pairs.length} {check.pairs.length === 1 ? "pairing" : "pairings"}, {check.duplicates.length} {check.duplicates.length === 1 ? "look-alike" : "look-alikes"}</span>}
+            </div>
+            {dup && !owned && (
+              <div className="dup-note">
+                <ItemImg item={dup.item} />
+                <span>You own a near twin: your {dup.item.name.toLowerCase()}{dup.item.wornCount ? `, worn ${dup.item.wornCount} times` : ""}.</span>
+              </div>
+            )}
+            {pairsRail || (others.length > 0
+              ? <p className="hint" style={{ margin: "0 4px 24px" }}>Nothing you own goes with it yet. You would be buying an outfit, not a piece.</p>
+              : <p className="hint" style={{ margin: "0 4px 24px" }}>Add your clothes in Wardrobe to see what this goes with.</p>)}
+          </>
+        ) : (
+          <>
+            <section className={`verdict ${v.tone}`} key={`v-${p.url}`} aria-live="polite">
               <div className="word">{v.word}</div>
               <div className="why">{v.why}</div>
-            </div>
-          </div>
-          {wardrobe.length > 0 && (
-            <div className="v-stats">
-              <div><b>{check.pairs.length}</b><span>{check.pairs.length === 1 ? "pairing" : "pairings"}</span></div>
-              <div><b>{check.duplicates.length}</b><span>{check.duplicates.length === 1 ? "look-alike" : "look-alikes"}</span></div>
-              <div><b>{wardrobe.length}</b><span>in wardrobe</span></div>
-            </div>
-          )}
-          {aiReady(settings) && wardrobe.length > 0 && (
-            take ? <div className="take"><Icon.sparkle />{take}</div>
-              : takeErr ? <div className="take">{takeErr}</div>
-              : <div className="take loading"><div className="shimmer" style={{ width: "92%" }} /><div className="shimmer" style={{ width: "70%" }} /></div>
-          )}
-        </section>
-
-        {check.duplicates.length > 0 && (
-          <>
-            <h2 className="section">Already in your wardrobe</h2>
-            <div className="group">
-              {check.duplicates.map((d) => (
-                <div className="row thumb-row" key={d.item.id}>
-                  <ItemImg item={d.item} className="thumb" />
-                  <div className="grow">
-                    <div className="truncate">{d.item.name}</div>
-                    <div className="meta">{d.reason.replace("You own this: ", "")}{d.item.wornCount ? `, worn ${d.item.wornCount} times` : ""}</div>
-                  </div>
+              {others.length > 0 && (
+                <div className="v-stats">
+                  <div><b>{check.pairs.length}</b><span>{check.pairs.length === 1 ? "pairing" : "pairings"}</span></div>
+                  <div><b>{check.duplicates.length}</b><span>{check.duplicates.length === 1 ? "look-alike" : "look-alikes"}</span></div>
+                  <div><b>{wardrobe.length}</b><span>in wardrobe</span></div>
                 </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {check.pairs.length > 0 && (
-          <>
-            <h2 className="section">Outfits it makes</h2>
-            <div className="rail">
-              {check.pairs.map((m) => (
-                <div className="pair" key={m.item.id}>
-                  <div className="pair-imgs">
-                    {p.images[0] ? <img src={p.images[0]} alt="" referrerPolicy="no-referrer" /> : <div />}
-                    <ItemImg item={m.item} />
-                  </div>
-                  <div className="name truncate">{m.item.name}</div>
-                  <div className="sub">{cap(m.reason)}</div>
+              )}
+              {aiReady(settings) && others.length > 0 && (
+                take ? <div className="take"><Icon.sparkle />{take}</div>
+                  : takeErr ? <div className="take">{takeErr}</div>
+                  : <div className="take"><div style={{ flex: 1 }}><div className="skeleton" style={{ width: "92%" }} /><div className="skeleton" style={{ width: "70%" }} /></div></div>
+              )}
+            </section>
+            {!profile && (
+              <RatingPanel src={p.images[0] ?? ""} title={p.name} url={p.url} profile={profile} wardrobe={others} goStyle={goStyle} />
+            )}
+            {check.duplicates.length > 0 && (
+              <>
+                <h2 className="section">Already in your wardrobe</h2>
+                <div className="group">
+                  {check.duplicates.map((d) => (
+                    <div className="row thumb-row" key={d.item.id}>
+                      <ItemImg item={d.item} className="thumb" />
+                      <div className="grow">
+                        <div className="truncate">{d.item.name}</div>
+                        <div className="meta">{d.reason.replace("You own this: ", "")}{d.item.wornCount ? `, worn ${d.item.wornCount} times` : ""}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
+            {pairsRail && <><h2 className="section">Outfits it makes</h2>{pairsRail}</>}
           </>
         )}
 

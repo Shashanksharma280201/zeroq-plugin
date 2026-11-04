@@ -65,14 +65,14 @@ function Onboarding({ onDone }: { onDone: () => void }) {
   if (step === "intro") {
     return (
       <div className="onb">
-        <div className="onb-stage"><Avatar a={PLACEHOLDER} size={130} /></div>
-        <h1 className="onb-title">Let's get to know your style</h1>
-        <p className="onb-sub">Show Zero Q five outfits you love wearing. It works out your colours, your shapes and your taste, then rates anything you point at on any site.</p>
-        <ol className="onb-steps">
-          <li><span>1</span>Five favourite outfits, head to toe</li>
-          <li><span>2</span>Three quick taps</li>
-          <li><span>3</span>Meet your style character</li>
-        </ol>
+        <div className="onb-stage"><Avatar a={PLACEHOLDER} size={112} /></div>
+        <h1 className="onb-title">Show us five outfits you love</h1>
+        <p className="onb-sub">Zero Q reads your colours, shapes and taste from them, then scores anything you point at, on any site, for you.</p>
+        <ul className="onb-steps">
+          <li>Five photos, head to toe<span>2 min</span></li>
+          <li>Three quick taps<span>30 sec</span></li>
+          <li>Your style, read back to you<span>20 sec</span></li>
+        </ul>
         <div className="onb-cta"><button className="btn filled block" onClick={() => go("photos")}>Get started</button></div>
       </div>
     );
@@ -116,10 +116,10 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Array<{ blob
           ),
         )}
       </div>
-      <div className="dots" aria-hidden>{Array.from({ length: MAX }).map((_, i) => <i key={i} className={i < n ? "on" : ""} />)}</div>
-      <p className="hint" style={{ textAlign: "center", margin: "6px 0 0" }}>
-        {n < MIN ? `Add at least ${MIN - n} more.` : n < MAX ? "Five gives the sharpest read, but you can go on." : "Perfect."}
-      </p>
+      <div className="slot-count">
+        <span className="hint">{n < MIN ? `Add at least ${MIN - n} more` : n < MAX ? "Five gives the sharpest read" : "That's all five"}</span>
+        <b>{n} of {MAX}</b>
+      </div>
       <div className="onb-cta"><button className="btn filled block" disabled={n < MIN} onClick={onNext}>Continue</button></div>
     </div>
   );
@@ -179,22 +179,23 @@ function QuestionStep({ answers, setAnswers, err, onBack, onBuild, count }: { an
   );
 }
 
-const LINES = ["Looking at your outfits", "Finding colours that suit you", "Spotting what you repeat", "Reading your silhouette", "Sketching your character"];
+const LINES = ["Looking at each outfit", "Finding the colours that suit you", "Spotting what you keep choosing", "Reading your silhouette", "Drawing your character"];
 
 function Building({ photos }: { photos: string[] }) {
   const [i, setI] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setI((x) => Math.min(LINES.length - 1, x + 1)), 2600);
+    const t = setInterval(() => setI((x) => Math.min(LINES.length - 1, x + 1)), 3200);
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="onb building">
+    <div className="onb building" aria-live="polite">
       <div className="fan" aria-hidden>
-        {photos.map((u, k) => <img key={u} src={u} alt="" style={{ "--k": k - (photos.length - 1) / 2 } as any} />)}
-        <div className="scanline" />
+        {photos.map((u, k) => <img key={u} src={u} alt="" className={k === i % photos.length ? "reading" : ""} style={{ "--k": k - (photos.length - 1) / 2 } as any} />)}
       </div>
-      <h1 className="onb-title" key={i}>{LINES[i]}</h1>
-      <p className="onb-sub">This takes about 20 seconds.</p>
+      <h1 className="onb-title">Reading your outfits</h1>
+      <ul className="building-steps">
+        {LINES.map((l, k) => <li key={l} className={k < i ? "done" : k === i ? "now" : ""}><i />{l}</li>)}
+      </ul>
     </div>
   );
 }
@@ -207,17 +208,23 @@ function Reveal({ p, onDone }: { p: StyleProfile; onDone: () => void }) {
   }, []);
   return (
     <div className="onb reveal">
-      <div className="onb-stage glow" style={{ "--glow": p.palette.best[0]?.hex ?? "#5e5ce6" } as any}>
-        <Avatar a={p.avatar} mood={mood} size={140} />
+      <div className="onb-stage">
+        <Avatar a={p.avatar} mood={mood} size={128} />
       </div>
-      <div className="eyebrow">Meet your style</div>
       <h1 className="onb-title">{p.styleName}</h1>
       <p className="onb-sub">{p.summary}</p>
+      <PaletteBand p={p} />
       <ProfileDetails p={p} />
       <div className="onb-cta"><button className="btn filled block" onClick={onDone}>Start shopping</button></div>
-      <p className="hint" style={{ textAlign: "center" }}>On any site, right-click a photo and choose Rate this for me, or press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>X</kbd> and click it.</p>
+      <p className="hint" style={{ margin: "0 0 20px" }}>On any site, right-click a photo and choose Rate this for me, or press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>X</kbd> and click it.</p>
     </div>
   );
+}
+
+/** Your best colours as one continuous band: the profile's signature. */
+function PaletteBand({ p }: { p: StyleProfile }) {
+  if (!p.palette.best.length) return null;
+  return <div className="palette-band" aria-label={`Your colours: ${p.palette.best.map((s) => s.name).join(", ")}`}>{p.palette.best.map((s) => <i key={s.hex + s.name} style={{ background: s.hex }} />)}</div>;
 }
 
 function ProfileDetails({ p }: { p: StyleProfile }) {
@@ -264,23 +271,23 @@ function ProfileDetails({ p }: { p: StyleProfile }) {
 function ProfileView({ p, onRedo }: { p: StyleProfile; onRedo: () => void }) {
   const hud = useHud();
   return (
-    <Page title="Your style">
+    <Page title="You">
       <div className="profile-hero">
-        <div className="onb-stage glow small" style={{ "--glow": p.palette.best[0]?.hex ?? "#5e5ce6" } as any}><Avatar a={p.avatar} size={100} /></div>
+        <div className="onb-stage small"><Avatar a={p.avatar} size={96} /></div>
         <div>
-          <div className="eyebrow">{p.styleWords.slice(0, 3).join(", ")}</div>
-          <div className="pname" style={{ font: "700 26px/1.1 var(--font-display)", letterSpacing: "-0.025em" }}>{p.styleName}</div>
-          <p className="hint" style={{ fontSize: 14, marginTop: 6 }}>{p.summary}</p>
+          <div className="greeting" style={{ fontSize: 30, margin: 0 }}>{p.styleName}</div>
+          <p className="meta">{p.summary}</p>
         </div>
       </div>
+      <PaletteBand p={p} />
       <ProfileDetails p={p} />
       <div className="group">
         <div className="row">
           <span className="grow">Use my build in advice</span>
           <Switch on={p.answers.useFrame} onChange={(v) => saveProfile({ ...p, answers: { ...p.answers, useFrame: v } })} label="Use my build in advice" />
         </div>
-        <button className="row" onClick={onRedo}><span className="grow" style={{ color: "var(--tint)" }}>Redo with new photos</span><span className="chev">›</span></button>
-        <button className="row" onClick={async () => { await clearProfile(); hud("Profile deleted"); }}><span className="grow" style={{ color: "var(--bad)" }}>Delete profile and photos</span></button>
+        <button className="row" onClick={onRedo}><span className="grow link">Redo with new photos</span><span className="chev">›</span></button>
+        <button className="row" onClick={async () => { await clearProfile(); hud("Profile deleted"); }}><span className="grow danger-link">Delete profile and photos</span></button>
       </div>
       <p className="group-footer">Built from {p.photoCount} outfits on {new Date(p.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "long" })}. Stored only in this browser.</p>
     </Page>

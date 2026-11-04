@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { WardrobeItem } from "@zq/core";
-import { HudProvider, Icon, transition, useProfile, useWardrobe } from "./components/kit.tsx";
+import { HudProvider, Icon, ZQMark, transition, useProfile, useWardrobe } from "./components/kit.tsx";
 import { Style } from "./screens/Style.tsx";
 import { Settings } from "./screens/Settings.tsx";
 import { ThisItem } from "./screens/ThisItem.tsx";
@@ -33,6 +33,7 @@ export function App({ surface }: { surface: Surface }) {
     <HudProvider>
       <div className="shell">
         <nav className="tabbar" aria-label="Sections">
+          <div className="brand"><ZQMark /> Zero Q</div>
           {TABS.filter((t) => t.surfaces.includes(surface)).map((t) => (
             <button key={t.id} className="tab" aria-current={tab === t.id ? "page" : undefined} onClick={() => go(t.id)}>
               <t.icon />
