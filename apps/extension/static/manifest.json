@@ -5,19 +5,61 @@
   "version": "0.1.0",
   "description": "Your wardrobe, on every store. Pairs, duplicate warnings and try-on while you shop.",
   "minimum_chrome_version": "116",
-  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
-  "action": { "default_title": "Open Zero Q (Alt+Shift+Z)", "default_icon": { "16": "icons/16.png", "32": "icons/32.png" } },
-  "side_panel": { "default_path": "sidepanel.html" },
-  "background": { "service_worker": "background.js" },
-  "permissions": ["storage", "sidePanel", "tabs", "unlimitedStorage"],
-  "host_permissions": ["<all_urls>"],
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "action": {
+    "default_title": "Open Zero Q (Alt+Shift+Z)",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "tabs",
+    "unlimitedStorage",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "content_scripts": [
-    { "matches": ["http://*/*", "https://*/*"], "js": ["content.js"], "run_at": "document_idle" }
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
   ],
   "commands": {
     "_execute_action": {
-      "suggested_key": { "default": "Alt+Shift+Z", "mac": "Alt+Shift+Z" },
+      "suggested_key": {
+        "default": "Alt+Shift+Z",
+        "mac": "Alt+Shift+Z"
+      },
       "description": "Open Zero Q on this page"
+    },
+    "pick-item": {
+      "suggested_key": {
+        "default": "Alt+Shift+X",
+        "mac": "Alt+Shift+X"
+      },
+      "description": "Point at any item to rate it"
     }
   }
 }

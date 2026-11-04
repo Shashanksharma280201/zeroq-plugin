@@ -14,11 +14,11 @@ export class NoKeyError extends Error {
   }
 }
 
-type Content =
+export type Content =
   | { type: "text"; text: string }
   | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
 
-async function ask(system: string, content: Content[], maxTokens = 800): Promise<string> {
+export async function askClaude(system: string, content: Content[], maxTokens = 800): Promise<string> {
   const s = await getSettings();
   if (!s.anthropicKey) throw new NoKeyError();
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -47,15 +47,15 @@ async function ask(system: string, content: Content[], maxTokens = 800): Promise
   return (data.content ?? []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("");
 }
 
-function json<T>(text: string): T {
+export function parseJson<T>(text: string): T {
   const start = text.search(/[[{]/);
   const end = Math.max(text.lastIndexOf("}"), text.lastIndexOf("]"));
   if (start < 0 || end < start) throw new Error("The stylist sent back something unreadable. Try again.");
   return JSON.parse(text.slice(start, end + 1));
 }
 
-async function imagePart(blob: Blob): Promise<Content> {
-  const small = await downscale(blob, 768);
+export async function imagePart(blob: Blob, max = 768): Promise<Content> {
+  const small = await downscale(blob, max);
   return { type: "image", source: { type: "base64", media_type: small.type || "image/jpeg", data: await blobToBase64(small) } };
 }
 
@@ -76,7 +76,7 @@ export interface Tags {
 }
 
 export async function tagPhoto(photo: Blob): Promise<Tags> {
-  const text = await ask(
+  const text = await askClaude(
     `You catalogue clothing photos. Reply with JSON only.`,
     [
       await imagePart(photo),
@@ -88,7 +88,7 @@ export async function tagPhoto(photo: Blob): Promise<Tags> {
     ],
     300,
   );
-  const t = json<Tags>(text);
+  const t = parseJson<Tags>(text);
   if (!CATEGORIES.includes(t.category)) t.category = "other";
   t.formality = Math.max(1, Math.min(5, Math.round(Number(t.formality) || 3)));
   t.colors = Array.isArray(t.colors) ? t.colors.slice(0, 2) : [];
@@ -111,13 +111,13 @@ ${wardrobe.slice(0, 120).map(compact).join("\n") || "(empty)"}
 
 In at most 3 short sentences: should I buy it, what exactly would I wear it with from my wardrobe (use item names), and is anything about it redundant. Start with a clear verdict word: Buy, Maybe, or Skip.`,
   });
-  return (await ask(STYLIST, content, 250)).trim();
+  return (await askClaude(STYLIST, content, 250)).trim();
 }
 
 // ---------- outfits for an occasion ----------
 
 export async function planOutfits(occasion: string, wardrobe: WardrobeItem[], extra = ""): Promise<Outfit[]> {
-  const text = await ask(
+  const text = await askClaude(
     STYLIST + " Reply with JSON only.",
     [
       {
@@ -133,7 +133,7 @@ Return 3 different outfits as JSON array: [{"title": 2 to 5 words, "itemIds": [i
     700,
   );
   const ids = new Set(wardrobe.map((i) => i.id));
-  return json<Outfit[]>(text)
+  return parseJson<Outfit[]>(text)
     .map((o) => ({ ...o, itemIds: (o.itemIds ?? []).filter((id) => ids.has(id)) }))
     .filter((o) => o.itemIds.length > 0)
     .slice(0, 3);
@@ -143,7 +143,7 @@ Return 3 different outfits as JSON array: [{"title": 2 to 5 words, "itemIds": [i
 
 export async function wardrobeGaps(wardrobe: WardrobeItem[]): Promise<string> {
   return (
-    await ask(STYLIST, [
+    await askClaude(STYLIST, [
       {
         type: "text",
         text: `My wardrobe:\n${wardrobe.map(compact).join("\n")}\n\nName the 3 additions that would unlock the most new outfits with what I already own. One line each, specific (colour and type), with how many new outfits each would roughly unlock.`,

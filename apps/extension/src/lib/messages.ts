@@ -4,10 +4,23 @@ import type { DetectedProduct, ProductCheck } from "@zq/core";
 export type ToBackground =
   | { type: "product"; product: DetectedProduct | null }
   | { type: "open-panel" }
-  | { type: "mute-site"; host: string };
+  | { type: "mute-site"; host: string }
+  | { type: "picked"; src: string; title: string; url: string; alt?: string };
 
 /** Background or panel -> content script */
-export type ToContent = { type: "detect" };
+export type ToContent =
+  | { type: "detect" }
+  | { type: "pick-start" }
+  | { type: "rating"; src: string; state: "working" | "done" | "error"; score?: number; verdict?: string; headline?: string };
+
+/** A picked image waiting for (or holding) a rating, kept per tab in session storage. */
+export interface Pick {
+  src: string;
+  title: string;
+  url: string;
+  alt?: string;
+  at: number;
+}
 
 /** Short summary the content script shows on its pill. */
 export interface PillSummary {

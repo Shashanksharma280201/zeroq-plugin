@@ -3,13 +3,16 @@ import { checkProduct, classifyProduct, type DetectedProduct, type ProductCheck,
 import { productTake } from "../../lib/ai.ts";
 import { addItem } from "../../lib/db.ts";
 import { srcToBlob } from "../../lib/images.ts";
-import type { TabState } from "../../lib/messages.ts";
+import type { Pick, TabState } from "../../lib/messages.ts";
+import type { StyleProfile } from "../../lib/profile.ts";
+import { RatingPanel } from "../components/Rating.tsx";
 import { canTryOn } from "../../lib/vto.ts";
 import { Icon, ItemImg, Page, money, useHud, useSettings } from "../components/kit.tsx";
 
-function useActiveProduct(): { product: DetectedProduct | null; loading: boolean; recheck: () => void } {
+function useActiveProduct(): { product: DetectedProduct | null; pick: Pick | null; tabId?: number; loading: boolean; recheck: () => void; clearPick: () => void } {
   const [tabId, setTabId] = useState<number>();
   const [product, setProduct] = useState<DetectedProduct | null>(null);
+  const [pick, setPick] = useState<Pick | null>(null);
   const [loading, setLoading] = useState(true);
 
   // ?tab=<id> pins the panel to one tab, used when previewing sidepanel.html in a normal tab.
@@ -42,6 +45,8 @@ function useActiveProduct(): { product: DetectedProduct | null; loading: boolean
   useEffect(() => {
     if (tabId == null) return;
     const key = `tab:${tabId}`;
+    const pk = `pick:${tabId}`;
+    chrome.storage.session.get(pk).then((s) => setPick((s[pk] as Pick | undefined) ?? null));
     chrome.storage.session.get(key).then((s) => {
       const st = s[key] as TabState | undefined;
       if (st) {
@@ -51,18 +56,22 @@ function useActiveProduct(): { product: DetectedProduct | null; loading: boolean
     });
     const h = (ch: Record<string, chrome.storage.StorageChange>, area: string) => {
       if (area === "session" && ch[key]) setProduct((ch[key].newValue as TabState | undefined)?.product ?? null);
+      if (area === "session" && ch[pk]) setPick((ch[pk].newValue as Pick | undefined) ?? null);
     };
     chrome.storage.onChanged.addListener(h);
     return () => chrome.storage.onChanged.removeListener(h);
   }, [tabId]);
 
-  return { product, loading, recheck };
+  const clearPick = () => tabId != null && chrome.storage.session.remove(`pick:${tabId}`);
+  return { product, pick, tabId, loading: loading && !pick, recheck, clearPick };
 }
 
 const takeCache = new Map<string, string>();
 
-export function ThisItem({ wardrobe, onTryOn, goWardrobe }: { wardrobe: WardrobeItem[]; onTryOn: (g: { src: string; category: ProductCheck["product"]["category"]; name: string }) => void; goWardrobe: () => void }) {
-  const { product, loading, recheck } = useActiveProduct();
+export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { wardrobe: WardrobeItem[]; profile: StyleProfile | null | undefined; onTryOn: (g: { src: string; category: ProductCheck["product"]["category"]; name: string }) => void; goWardrobe: () => void; goStyle: () => void }) {
+  const { product, pick, tabId, loading, recheck, clearPick } = useActiveProduct();
+  const [showPick, setShowPick] = useState(true);
+  useEffect(() => setShowPick(true), [pick?.at]);
   const settings = useSettings();
   const hud = useHud();
   // Once you buy it, it is in the wardrobe; never compare the item with itself.
@@ -91,6 +100,28 @@ export function ThisItem({ wardrobe, onTryOn, goWardrobe }: { wardrobe: Wardrobe
     };
   }, [check?.product.url, wardrobe.length, settings?.anthropicKey]);
 
+  if (pick && showPick) {
+    const host = (() => { try { return new URL(pick.url).hostname.replace(/^www\./, ""); } catch { return ""; } })();
+    return (
+      <div className="item-screen">
+        <header className="item-top">
+          <span className="mark" aria-hidden>Q</span>
+          <span className="host truncate grow">{host}</span>
+          <button className="btn plain small" onClick={() => { setShowPick(false); if (!product) clearPick(); }}>{product ? "Back to page item" : "Done"}</button>
+        </header>
+        <div className="content">
+          <figure className="hero" key={`hero-${pick.src}`}>
+            <img className="hero-bg" src={pick.src} alt="" aria-hidden referrerPolicy="no-referrer" />
+            <img className="hero-img" src={pick.src} alt={pick.alt ?? "Picked item"} referrerPolicy="no-referrer" style={{ inset: 16, height: "calc(100% - 32px)" }} />
+          </figure>
+          <RatingPanel key={`rate-${pick.src}`} src={pick.src} title={pick.title} url={pick.url} hint={pick.alt} profile={profile} wardrobe={wardrobe} tabId={tabId}
+            goStyle={goStyle} onTryOn={(category) => onTryOn({ src: pick.src, category: category as any, name: pick.alt || "this item" })} />
+          <p className="hint" style={{ textAlign: "center", margin: "4px 0 24px" }}>Rate another: right-click any photo, or <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>X</kbd></p>
+        </div>
+      </div>
+    );
+  }
+
   if (loading && !product) {
     return (
       <Page title="This item">
@@ -106,8 +137,11 @@ export function ThisItem({ wardrobe, onTryOn, goWardrobe }: { wardrobe: Wardrobe
         <div className="empty">
           <div className="glyph"><Icon.bag /></div>
           <h3>Open a product page</h3>
-          <p>Go to any item on Myntra, Ajio, Zara, H&amp;M or a brand's own store. Zero Q checks it against your wardrobe.</p>
-          <button className="btn tinted small" onClick={recheck}>Check this page</button>
+          <p>Go to any item on Myntra, Ajio, Zara, H&amp;M or a brand's own store. Or point at any clothing photo: right-click it and choose Rate this for me, or press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>X</kbd>.</p>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <button className="btn tinted small" onClick={recheck}>Check this page</button>
+            {tabId != null && <button className="btn gray small" onClick={() => chrome.tabs.sendMessage(tabId, { type: "pick-start" }).catch(() => {})}><Icon.target /> Point at an item</button>}
+          </div>
         </div>
       </Page>
     );
@@ -165,6 +199,12 @@ export function ThisItem({ wardrobe, onTryOn, goWardrobe }: { wardrobe: Wardrobe
           </figcaption>
         </figure>
 
+        {p.images[0] && (
+          <RatingPanel key={`rate-${p.images[0]}`} src={p.images[0]} title={p.name} url={p.url} hint={[p.brand, p.name].filter(Boolean).join(" ")} profile={profile} wardrobe={others} tabId={tabId}
+            goStyle={goStyle} />
+        )}
+
+        <h2 className="section">Against your wardrobe</h2>
         <section className={`verdict ${v.tone}`} key={`v-${p.url}`} aria-live="polite">
           <div className="v-head">
             <span className="v-icon"><VIcon /></span>

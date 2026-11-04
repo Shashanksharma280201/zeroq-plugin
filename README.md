@@ -6,6 +6,9 @@ On any product page it tells you whether the item goes with what you own, warns 
 
 ## Features
 
+- **Style profile.** Show Claude 5 favourite outfits, head to toe, and answer three taps. It reads your colours, undertone, what you repeat and avoid, and (if you allow it) your frame, then draws your animated style character. Nothing about your body is asked.
+- **Rate anything.** Right-click any clothing photo on any site and choose *Rate this for me*, or press `Alt+Shift+X` and click it. You get a 0 to 100 score with colour, shape and style breakdowns, what it goes with in your wardrobe, and where to wear it. A small card with the score pins next to the photo; the full read opens in the side panel. Product pages are scored automatically.
+
 - **Product check.** Works on Myntra, Ajio, Zara, H&M, Shopify stores and most others by reading the product data stores publish for Google Shopping. No per-site code.
 - **Duplicate warning.** "You have this" when the item matches something in your wardrobe by type and colour.
 - **Goes with.** Things you own that pair with the item, scored on colour harmony and how dressy each piece is.
@@ -21,7 +24,7 @@ On any product page it tells you whether the item goes with what you own, warns 
 | Badge only | Nothing on the page. The toolbar icon shows a number for matches, `!` for a duplicate. |
 | Shortcut only | Zero Q checks a page only when you open it. |
 
-`Alt+Shift+Z` or the toolbar icon opens the side panel on any page. Change the shortcut at `chrome://extensions/shortcuts`.
+`Alt+Shift+Z` or the toolbar icon opens the side panel on any page. `Alt+Shift+X` starts point-and-rate. Change the shortcut at `chrome://extensions/shortcuts`.
 
 Chrome does not let extensions open the side panel without a click or a key press, so "auto" means the button appears on its own, not the panel.
 

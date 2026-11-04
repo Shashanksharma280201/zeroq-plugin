@@ -1,14 +1,39 @@
 import { checkProduct, classifyProduct, type DetectedProduct } from "@zq/core";
 import { listItems } from "./lib/db.ts";
-import { summarise, type TabState, type ToBackground } from "./lib/messages.ts";
+import { summarise, type Pick, type TabState, type ToBackground } from "./lib/messages.ts";
 import { getSettings, setSettings } from "./lib/settings.ts";
 
 // Clicking the toolbar icon or pressing Alt+Shift+Z opens the side panel.
 chrome.runtime.onInstalled.addListener(async (details) => {
   await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({ id: "zq-rate", title: "Rate this for me with Zero Q", contexts: ["image"] });
+  });
   if (details.reason === "install") {
-    chrome.tabs.create({ url: chrome.runtime.getURL("app.html#welcome") });
+    chrome.tabs.create({ url: chrome.runtime.getURL("app.html#style") });
   }
+});
+
+// ---------- point at any item ----------
+
+const pickKey = (id: number) => `pick:${id}`;
+
+async function storePick(tabId: number, pick: Pick) {
+  await chrome.storage.session.set({ [pickKey(tabId)]: pick });
+}
+
+// Right-click any image: open the panel (must be first, inside the gesture) and rate it.
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== "zq-rate" || tab?.id == null || !info.srcUrl) return;
+  chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
+  storePick(tab.id, { src: info.srcUrl, title: tab.title ?? "", url: info.pageUrl ?? tab.url ?? "", at: Date.now() });
+});
+
+// Alt+Shift+X: start pick mode on the page.
+chrome.commands.onCommand.addListener(async (cmd, tab) => {
+  if (cmd !== "pick-item") return;
+  const id = tab?.id ?? (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]?.id;
+  if (id != null) chrome.tabs.sendMessage(id, { type: "pick-start" }).catch(() => {});
 });
 chrome.runtime.onStartup.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
@@ -48,6 +73,11 @@ chrome.runtime.onMessage.addListener((msg: ToBackground, sender, reply) => {
     chrome.sidePanel.open({ tabId }).catch(() => {});
     return false;
   }
+  if (msg.type === "picked" && tabId != null) {
+    chrome.sidePanel.open({ tabId }).catch(() => {});
+    storePick(tabId, { src: msg.src, title: msg.title, url: msg.url, alt: msg.alt, at: Date.now() });
+    return false;
+  }
   if (msg.type === "mute-site") {
     getSettings().then((s) => {
       if (!s.mutedSites.includes(msg.host)) setSettings({ mutedSites: [...s.mutedSites, msg.host] });
@@ -58,7 +88,7 @@ chrome.runtime.onMessage.addListener((msg: ToBackground, sender, reply) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  chrome.storage.session.remove(tabKey(tabId));
+  chrome.storage.session.remove([tabKey(tabId), pickKey(tabId)]);
 });
 
 // When the wardrobe changes, refresh the badge for the active tab so it

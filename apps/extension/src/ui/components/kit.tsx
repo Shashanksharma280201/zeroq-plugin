@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import type { WardrobeItem } from "@zq/core";
 import { getBlob, listItems, onChange } from "../../lib/db.ts";
 import { getSettings, onSettings, type Settings } from "../../lib/settings.ts";
+import { getProfile, onProfile, type StyleProfile } from "../../lib/profile.ts";
 
 // ---------- icons (drawn to sit next to SF Symbols) ----------
 
@@ -15,6 +16,8 @@ export const Icon = {
   plus: () => (<svg viewBox="0 0 24 24" {...s} strokeWidth={2}><path d="M12 5v14M5 12h14"/></svg>),
   check: () => (<svg viewBox="0 0 24 24" {...s} strokeWidth={2.2}><circle cx="12" cy="12" r="9.5" strokeWidth={1.7}/><path d="m8 12.3 2.7 2.7L16.2 9.5"/></svg>),
   alert: () => (<svg viewBox="0 0 24 24" {...s}><circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v5.5M12 16.4v.1"/></svg>),
+  target: () => (<svg viewBox="0 0 24 24" {...s}><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg>),
+  face: () => (<svg viewBox="0 0 24 24" {...s}><circle cx="12" cy="12" r="9.5"/><path d="M8.5 14.5c1 1.3 2.2 2 3.5 2s2.5-.7 3.5-2"/><path d="M9 9.5v.5M15 9.5v.5" strokeWidth={2.2}/></svg>),
   person: () => (<svg viewBox="0 0 24 24" {...s}><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20.2c.9-3.7 3.6-5.6 7.2-5.6s6.3 1.9 7.2 5.6"/></svg>),
   expand: () => (<svg viewBox="0 0 24 24" {...s}><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>),
   sparkle: () => (<svg viewBox="0 0 24 24" {...s}><path d="M12 3.5c.5 4.3 2.2 6 6.5 6.5-4.3.5-6 2.2-6.5 6.5-.5-4.3-2.2-6-6.5-6.5 4.3-.5 6-2.2 6.5-6.5Z"/><path d="M18.5 15.5c.2 1.6.9 2.3 2.5 2.5-1.6.2-2.3.9-2.5 2.5-.2-1.6-.9-2.3-2.5-2.5 1.6-.2 2.3-.9 2.5-2.5Z"/></svg>),
@@ -39,6 +42,16 @@ export function useWardrobe(): WardrobeItem[] | null {
     };
   }, []);
   return items;
+}
+
+/** undefined while loading, null when there is no profile yet */
+export function useProfile(): StyleProfile | null | undefined {
+  const [p, set] = useState<StyleProfile | null | undefined>(undefined);
+  useEffect(() => {
+    getProfile().then(set);
+    return onProfile(set);
+  }, []);
+  return p;
 }
 
 export function useSettings(): Settings | null {

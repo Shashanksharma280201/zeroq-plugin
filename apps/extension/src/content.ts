@@ -1,6 +1,7 @@
 import { detectProduct } from "@zq/core";
 import type { PillSummary, ToBackground, ToContent } from "./lib/messages.ts";
 import { getSettings, onSettings, type Settings } from "./lib/settings.ts";
+import { showCard, startPick } from "./pick.ts";
 
 /**
  * Runs on every page. Cheap by design: one pass over <script type=ld+json>
@@ -61,6 +62,8 @@ async function init() {
     }
   }, 700);
   chrome.runtime.onMessage.addListener((m: ToContent, _s, reply) => {
+    if (m.type === "pick-start") startPick();
+    if (m.type === "rating") showCard(m);
     if (m.type === "detect") {
       reply(detectProduct(document, location.href));
       lastKey = "";
@@ -96,6 +99,10 @@ function createPill() {
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #8e8e93; }
   .good .dot { background: #30B158; } .warn .dot { background: #FF9F0A; }
   .chev { opacity: .45; font-size: 18px; margin-left: -2px; }
+  .rate { width: 44px; height: 44px; border-radius: 22px; display: grid; place-items: center; color: #5E5CE6;
+    background: rgba(250,250,252,.72); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
+    box-shadow: 0 0 0 .5px rgba(0,0,0,.12), 0 8px 28px rgba(0,0,0,.14); transition: transform .45s var(--spring); }
+  .rate svg { width: 22px; height: 22px; } .rate:active { transform: scale(.9); }
   .x { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: #6e6e73; font-size: 15px;
     background: rgba(250,250,252,.72); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 0 0 .5px rgba(0,0,0,.12), 0 4px 14px rgba(0,0,0,.1);
     opacity: 0; transform: scale(.6); transition: opacity .2s ease, transform .4s var(--spring); }
@@ -106,6 +113,7 @@ function createPill() {
   .toast.on { opacity: 1; transform: none; pointer-events: auto; }
   .toast button { color: #5E5CE6; font-weight: 600; }
   @media (prefers-color-scheme: dark) {
+    .rate { color: #8f8cff; background: rgba(44,44,46,.72); }
     .pill, .x, .toast { color: #f5f5f7; background: rgba(44,44,46,.72); box-shadow: 0 0 0 .5px rgba(255,255,255,.12), 0 8px 28px rgba(0,0,0,.45); }
     .x { color: #aeaeb2; } .toast button { color: #8f8cff; }
   }
@@ -113,6 +121,7 @@ function createPill() {
 </style>
 <div class="wrap" part="wrap">
   <button class="x" aria-label="Hide on this page">✕</button>
+  <button class="rate" aria-label="Point at an item to rate it" title="Rate an item (Alt+Shift+X)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg></button>
   <button class="pill" aria-label="Open Zero Q"><span class="mark">Q</span><span class="dot"></span><span class="label"></span><span class="chev">›</span></button>
   <div class="toast" role="status"><span>Hidden on this page.</span><button class="mute">Hide on this site</button></div>
 </div>`;
@@ -121,10 +130,12 @@ function createPill() {
   const label = root.querySelector(".label") as HTMLElement;
   const toast = root.querySelector(".toast") as HTMLElement;
   pillEl.addEventListener("click", () => send({ type: "open-panel" }));
+  root.querySelector(".rate")!.addEventListener("click", () => startPick());
   root.querySelector(".x")!.addEventListener("click", () => {
     dismissedFor = location.href;
     pillEl.style.display = "none";
     (root.querySelector(".x") as HTMLElement).style.display = "none";
+    (root.querySelector(".rate") as HTMLElement).style.display = "none";
     toast.classList.add("on");
     setTimeout(() => api.hide(), 4000);
   });
@@ -137,6 +148,7 @@ function createPill() {
   const api = {
     show(s: PillSummary) {
       pillEl.style.display = "";
+      (root.querySelector(".rate") as HTMLElement).style.display = "";
       (root.querySelector(".x") as HTMLElement).style.display = "";
       toast.classList.remove("on");
       label.textContent = s.label;
