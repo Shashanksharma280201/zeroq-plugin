@@ -1,6 +1,6 @@
 import { aiReady, PROVIDER_NAME } from "../../lib/settings.ts";
 import { useEffect, useRef, useState } from "react";
-import type { WardrobeItem } from "@zq/core";
+import { deltaE, type WardrobeItem } from "@zq/core";
 import { srcToBlob } from "../../lib/images.ts";
 import type { ToContent } from "../../lib/messages.ts";
 import { rateItem, type Rating, type StyleProfile } from "../../lib/profile.ts";
@@ -8,6 +8,7 @@ import { Avatar } from "./Avatar.tsx";
 import { Icon, ItemImg, useSettings } from "./kit.tsx";
 
 const cache = new Map<string, Rating>();
+export const cachedRating = (src: string) => cache.get(src);
 
 /**
  * Rates one image for you and renders the result. Also mirrors progress to
@@ -128,12 +129,14 @@ function RatingResult({ r, profile, wardrobe, onTryOn, onRedo }: { r: Rating; pr
         </div>
       </div>
 
+      <Receipt r={r} />
+
       <div className="rc-bars">
-        <Bar label="Colour on you" part={r.colour}>
-          <PaletteFit palette={profile.palette.best} item={r.item.hex} name={r.item.color} />
-        </Bar>
-        <Bar label="Shape for you" part={r.shape} />
-        <Bar label="Your style" part={r.style} />
+        {r.parts.filter((p) => p.key !== "wardrobe" || !pairs.length).map((p) => (
+          <Bar key={p.key} label={p.label} part={{ score: p.value, note: r.notes[p.key] ?? p.why }}>
+            {p.key === "colour" && <PaletteFit palette={profile.palette.best} item={r.item.hex} name={r.item.color} />}
+          </Bar>
+        ))}
       </div>
 
       {(pairs.length > 0 || r.wardrobe.note) && (
@@ -160,6 +163,29 @@ function RatingResult({ r, profile, wardrobe, onTryOn, onRedo }: { r: Rating; pr
         <button className="btn plain small" onClick={onRedo}>Rate again</button>
       </div>
     </section>
+  );
+}
+
+const PART_COLOUR: Record<string, string> = { colour: "var(--accent)", style: "var(--text)", shape: "var(--muted)", wardrobe: "var(--faint)", occasion: "var(--control)" };
+
+/** Where the points came from: one stacked bar, then any adjustment or cap that changed the total. */
+function Receipt({ r }: { r: Rating }) {
+  const scale = r.raw > 0 ? r.score / Math.max(r.score, r.raw) : 0;
+  return (
+    <div className="receipt" aria-label={`Score ${r.score}: ${r.parts.map((p) => `${p.label} ${Math.round(p.points)} points`).join(", ")}`}>
+      <div className="receipt-bar">
+        {r.parts.map((p) => <i key={p.key} style={{ width: `${p.points * scale}%`, background: PART_COLOUR[p.key] }} title={`${p.label}: ${Math.round(p.points)} points`} />)}
+      </div>
+      <div className="receipt-rows">
+        {r.parts.map((p) => (
+          <div key={p.key}><span><i style={{ background: PART_COLOUR[p.key] }} />{p.label}</span><b>{Math.round(p.points)}</b></div>
+        ))}
+        {r.adjustments.map((a) => <div key={a.reason} className="adj"><span>{a.reason}</span><b>{a.delta}</b></div>)}
+        {r.caps[0] && r.raw + r.adjustments.reduce((s, a) => s + a.delta, 0) > r.caps[0].cap && (
+          <div className="adj"><span>{r.caps[0].reason}, capped at</span><b>{r.caps[0].cap}</b></div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -221,19 +247,4 @@ function PaletteFit({ palette, item, name }: { palette: Array<{ name: string; he
       <span>{near >= 0 ? `near your ${palette[near].name.toLowerCase()}` : "outside your palette"}</span>
     </div>
   );
-}
-
-/** CIE76 distance in Lab: under about 18 reads as the same family of colour. */
-function deltaE(a: string, b: string): number {
-  const [l1, a1, b1] = lab(a);
-  const [l2, a2, b2] = lab(b);
-  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
-}
-function lab(hex: string): [number, number, number] {
-  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v > 0.04045 ? ((v + 0.055) / 1.055) ** 2.4 : v / 12.92));
-  const x = (c[0] * 0.4124 + c[1] * 0.3576 + c[2] * 0.1805) / 0.95047;
-  const y = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
-  const z = (c[0] * 0.0193 + c[1] * 0.1192 + c[2] * 0.9505) / 1.08883;
-  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
-  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
 }

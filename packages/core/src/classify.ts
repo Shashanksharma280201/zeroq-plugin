@@ -106,3 +106,11 @@ export function classifyProduct(p: DetectedProduct): ClassifiedProduct {
   const colors = nameColors.length ? nameColors : guessColors(p.description ?? "");
   return { ...p, category: k.category, kind: k.kind, formality: k.formality, colors };
 }
+
+/** A representative shade for each basic colour name, for maths on colour words. */
+export const COLOR_HEX: Record<string, string> = {
+  navy: "#1f2a52", olive: "#66703e", maroon: "#7a2234", beige: "#cdb994", cream: "#efeadf",
+  black: "#1b1b1b", white: "#f5f5f2", grey: "#8a8a8a", denim: "#3d5a8a", blue: "#3a6fc4",
+  brown: "#7a5232", green: "#3f8f5a", red: "#c4302b", pink: "#e98aa8", purple: "#7d4fb8",
+  yellow: "#e9c23e", orange: "#ec7a2a",
+};

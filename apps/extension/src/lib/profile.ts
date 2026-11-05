@@ -1,4 +1,7 @@
-import type { WardrobeItem } from "@zq/core";
+import {
+  CATEGORIES, SHAPE_ANCHORS, STYLE_ANCHORS, guessColors, guessKind, scoreItem, wardrobeFacts,
+  type Category, type ItemFacts, type PartKey, type ScoreProfile, type ScoreResult, type WardrobeItem,
+} from "@zq/core";
 import { askAI, imagePart, parseJson, type Content } from "./ai.ts";
 import { getBlob, putBlob, deleteBlob } from "./db.ts";
 import { downscale } from "./images.ts";
@@ -56,22 +59,15 @@ export interface Answers {
   useFrame: boolean;
 }
 
-export interface Rating {
-  score: number;
-  verdict: "Made for you" | "Good on you" | "Could work" | "Not quite you" | "Skip it";
+/** A rating: facts from the AI, score from the formula in @zq/core/score.ts. */
+export interface Rating extends ScoreResult {
   headline: string;
-  item: { name: string; category: string; color: string; hex: string };
-  colour: Part;
-  shape: Part;
-  style: Part;
+  item: { name: string; category: string; color: string; hex: string; colors: Swatch[] };
+  /** The AI's one-line reading for each part, keyed by part */
+  notes: Partial<Record<PartKey, string>>;
   wardrobe: { pairsWith: string[]; note: string };
   occasions: string[];
   watchOut?: string;
-}
-
-interface Part {
-  score: number;
-  note: string;
 }
 
 // ---------- storage ----------
@@ -191,19 +187,57 @@ export function normaliseProfile(r: any, answers: Answers, photoCount: number): 
 
 // ---------- rating any item ----------
 
-const RATER = `You are this person's personal stylist. You know their taste profile and their wardrobe. Rate how well one item suits THEM specifically, not how nice it is in general. Be honest: a beautiful item that is not them should score low. Never comment on fit or size; that is decided in a trial room. Plain words, no emoji. Reply with JSON only.`;
+const RATER = `You are this person's personal stylist. You do not give scores. You report facts about the item and answer fixed questions about how it relates to this person, honestly and literally, so a formula can score it. Never comment on fit or size; that is decided in a trial room. Plain words, no emoji. Reply with JSON only.`;
+
+export function scoreProfile(p: StyleProfile): ScoreProfile {
+  return {
+    best: p.palette.best,
+    avoid: p.palette.avoid,
+    likes: p.likes,
+    dislikes: p.dislikes,
+    never: p.answers.never,
+    formality: p.formality,
+    useFrame: p.answers.useFrame,
+    budget: p.answers.budget,
+  };
+}
+
+function profileBlock(p: StyleProfile): string {
+  const frame = p.answers.useFrame ? `My frame: ${p.frame}. Cuts that flatter it: ${p.flatters.join("; ")}.` : "";
+  return `MY PROFILE
+Style: ${p.styleName}. ${p.summary}
+Colours that suit me: ${p.palette.best.map((s) => s.name).join(", ")}. Go easy on: ${p.palette.avoid.map((s) => s.name).join(", ") || "-"}.
+LIKES (by index): ${p.likes.map((l, i) => `[${i}] ${l}`).join("; ")}
+DISLIKES (by index): ${p.dislikes.map((l, i) => `[${i}] ${l}`).join("; ")}
+NEVER WEAR: ${p.answers.never || "-"}
+${frame}`;
+}
+
+const ITEM_SCHEMA = (useFrame: boolean) => `{"name": short name, "category": top|bottom|one-piece|outerwear|footwear|accessory,
+ "colors": up to 3 [{"name": plain colour name, "hex": "#rrggbb" of the actual fabric colour}], main colour first,
+ "formality": 1 lounge to 5 formal,
+ "styleFit": 1-5 where ${STYLE_ANCHORS},
+ "shapeFit": ${useFrame ? `1-5 where ${SHAPE_ANCHORS}` : "null"},
+ "likesMatched": indexes of my LIKES this item clearly is, "dislikesMatched": indexes of my DISLIKES it clearly is,
+ "never": true only if it is something on my NEVER WEAR list,
+ "notes": {"colour": one sentence on this colour against my palette, "shape": one sentence on the cut for me, "style": one sentence on my taste},
+ "pairsWith": up to 3 ids from my wardrobe it goes with, "wardrobeNote": one sentence,
+ "occasions": up to 3 short occasions, "watchOut": optional one sentence}`;
+
+function wardrobeBlock(wardrobe: WardrobeItem[]): string {
+  return `MY WARDROBE (id: item)\n${wardrobe.slice(0, 80).map((i) => `${i.id}: ${i.name} (${i.category}, ${i.colors.join("+") || "?"})`).join("\n") || "(empty)"}`;
+}
 
 export async function rateItem(opts: {
   image: Blob;
   pageTitle?: string;
   pageUrl?: string;
   hint?: string;
+  price?: number;
   profile: StyleProfile;
   wardrobe: WardrobeItem[];
 }): Promise<Rating> {
   const p = opts.profile;
-  const frame = p.answers.useFrame ? `Frame: ${p.frame}. Flatters: ${p.flatters.join("; ")}.` : "Do not use body or frame in the rating.";
-  const wardrobe = opts.wardrobe.slice(0, 80).map((i) => `${i.id}: ${i.name} (${i.category}, ${i.colors.join("+") || "?"})`).join("\n");
   const text = await askAI(
     RATER,
     [
@@ -212,50 +246,95 @@ export async function rateItem(opts: {
         type: "text",
         text: `The item is the main clothing piece in this image${opts.hint ? ` (${opts.hint})` : ""}. Page: ${opts.pageTitle ?? ""} ${opts.pageUrl ?? ""}
 
-MY PROFILE
-Style: ${p.styleName}. ${p.summary}
-Words: ${p.styleWords.join(", ")}. Undertone: ${p.undertone}.
-Colours that suit me: ${p.palette.best.map((s) => s.name).join(", ")}. Avoid: ${p.palette.avoid.map((s) => s.name).join(", ")}.
-I like: ${p.likes.join("; ")}. I avoid: ${p.dislikes.join("; ")}.
-${frame}
-Usual formality ${p.formality.usual} of 5. Shop for: ${p.answers.shopFor.join(", ")}. Never: ${p.answers.never || "-"}.
+${profileBlock(p)}
 
-MY WARDROBE (id: item)
-${wardrobe || "(empty)"}
+${wardrobeBlock(opts.wardrobe)}
 
-Return JSON:
-{"score": 0-100 overall fit to me,
- "verdict": "Made for you" (90+) | "Good on you" (75-89) | "Could work" (55-74) | "Not quite you" (35-54) | "Skip it" (<35),
- "headline": one sentence verdict in my terms,
- "item": {"name": short name, "category": top|bottom|one-piece|outerwear|footwear|accessory, "color": colour name, "hex": its main colour},
- "colour": {"score": 0-100, "note": one sentence},
- "shape": {"score": 0-100, "note": one sentence about cut and proportion for me},
- "style": {"score": 0-100, "note": one sentence about how it matches my taste},
- "wardrobe": {"pairsWith": up to 3 ids from my wardrobe, "note": one sentence},
- "occasions": up to 3 short occasions I would wear it to,
- "watchOut": optional one sentence}`,
+Return JSON exactly in this shape:
+${ITEM_SCHEMA(p.answers.useFrame)}`,
       },
     ],
-    { maxTokens: 900, json: true },
+    { maxTokens: 900, json: true, temperature: 0 },
   );
-  return normaliseRating(parseJson<any>(text), new Set(opts.wardrobe.map((i) => i.id)));
+  return toRating(parseJson<any>(text), p, opts.wardrobe, opts.price);
 }
 
-export function normaliseRating(r: any, ids: Set<string>): Rating {
-  const score = clamp(r.score, 0, 100, 50);
-  const verdict: Rating["verdict"] =
-    score >= 90 ? "Made for you" : score >= 75 ? "Good on you" : score >= 55 ? "Could work" : score >= 35 ? "Not quite you" : "Skip it";
-  const part = (x: any): Part => ({ score: clamp(x?.score, 0, 100, 50), note: String(x?.note ?? "") });
+/**
+ * Several items in one request (photos at a smaller size), for scanning a
+ * brand. Returns ratings in the same order; an item the AI skipped is null.
+ */
+export async function rateItems(opts: {
+  items: Array<{ image: Blob; hint: string; price?: number }>;
+  profile: StyleProfile;
+  wardrobe: WardrobeItem[];
+  extra?: WardrobeItem[];
+}): Promise<Array<Rating | null>> {
+  const p = opts.profile;
+  const content: Content[] = [];
+  for (const [i, it] of opts.items.entries()) {
+    content.push({ type: "text", text: `ITEM ${i}: ${it.hint}` });
+    content.push(await imagePart(it.image, 512));
+  }
+  content.push({
+    type: "text",
+    text: `${profileBlock(p)}
+
+${wardrobeBlock([...opts.wardrobe, ...(opts.extra ?? [])])}
+
+For each ITEM above, report on the main clothing piece in its photo. Return JSON: {"items": [{"i": item number, ...fields}]} where fields are exactly:
+${ITEM_SCHEMA(p.answers.useFrame)}`,
+  });
+  const raw = parseJson<any>(await askAI(RATER, content, { maxTokens: 500 * opts.items.length, json: true, temperature: 0 }));
+  const list: any[] = Array.isArray(raw) ? raw : raw.items ?? [];
+  return opts.items.map((it, i) => {
+    const r = list.find((x) => Number(x?.i) === i) ?? list[i];
+    return r ? toRating(r, p, opts.wardrobe, it.price, opts.extra) : null;
+  });
+}
+
+
+/** AI facts in, formula out. */
+export function toRating(r: any, p: StyleProfile, wardrobe: WardrobeItem[], price?: number, extra: WardrobeItem[] = []): Rating {
+  const colors: Swatch[] = (Array.isArray(r.colors) ? r.colors : r.item?.colors ?? [])
+    .filter((c: any) => c && HEX.test(c.hex))
+    .slice(0, 3)
+    .map((c: any) => ({ name: String(c.name ?? ""), hex: c.hex }));
+  const name = String(r.name ?? r.item?.name ?? "This item");
+  const category = String(r.category ?? r.item?.category ?? "top");
+  const formality = Number(r.formality ?? r.item?.formality ?? 3) || 3;
+  const idx = (v: any, n: number) => (Array.isArray(v) ? v.map(Number).filter((x) => Number.isInteger(x) && x >= 0 && x < n) : []);
+  const facts: ItemFacts = {
+    category,
+    colors,
+    formality,
+    styleFit: r.styleFit == null ? null : Number(r.styleFit),
+    shapeFit: r.shapeFit == null ? null : Number(r.shapeFit),
+    likesMatched: [...new Set(idx(r.likesMatched, p.likes.length))],
+    dislikesMatched: [...new Set(idx(r.dislikesMatched, p.dislikes.length))],
+    never: r.never === true,
+    price,
+  };
+  // Wardrobe facts come from the same matcher the rest of Zero Q uses.
+  const basic = guessColors(colors.map((c) => c.name).join(" "));
+  const kind = guessKind(name);
+  const asProduct = { name, category: (CATEGORIES as readonly string[]).includes(category) ? (category as Category) : kind.category, kind: kind.kind, colors: basic, formality };
+  const wf = wardrobeFacts(asProduct, wardrobe, extra);
+  const result = scoreItem(facts, scoreProfile(p), wf);
+
+  const notes: Rating["notes"] = { colour: r.notes?.colour, shape: r.notes?.shape, style: r.notes?.style };
+  for (const k of Object.keys(notes) as PartKey[]) if (!notes[k]) delete notes[k];
+  const ids = new Set([...wardrobe, ...extra].map((i) => i.id));
+  const best = [...result.parts].sort((a, b) => b.value * b.weight - a.value * a.weight)[0];
+  const worst = [...result.parts].sort((a, b) => a.value - b.value)[0];
+  // Lead with what decided it: a cap, else your taste when it is good, else the weakest part.
+  const lead = result.caps[0]?.reason ?? (result.score >= 55 ? notes.style ?? notes[best?.key] ?? best?.why : notes[worst?.key] ?? worst?.why) ?? "";
   return {
-    score,
-    verdict,
-    headline: String(r.headline ?? ""),
-    item: { name: String(r.item?.name ?? "This item"), category: String(r.item?.category ?? "top"), color: String(r.item?.color ?? ""), hex: hex(r.item?.hex, "#888888") },
-    colour: part(r.colour),
-    shape: part(r.shape),
-    style: part(r.style),
-    wardrobe: { pairsWith: list(r.wardrobe?.pairsWith, 3).filter((id: string) => ids.has(id)), note: String(r.wardrobe?.note ?? "") },
-    occasions: list(r.occasions, 3),
+    ...result,
+    headline: lead.endsWith(".") ? lead : `${lead}.`,
+    item: { name, category, color: colors[0]?.name ?? "", hex: colors[0]?.hex ?? "#888888", colors },
+    notes,
+    wardrobe: { pairsWith: (Array.isArray(r.pairsWith) ? r.pairsWith : []).map(String).filter((id: string) => ids.has(id)).slice(0, 3), note: String(r.wardrobeNote ?? "") },
+    occasions: (Array.isArray(r.occasions) ? r.occasions : []).map(String).slice(0, 3),
     watchOut: r.watchOut ? String(r.watchOut) : undefined,
   };
 }

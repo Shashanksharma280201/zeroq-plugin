@@ -457,6 +457,18 @@ kbd { font: 500 12px/1 var(--font); padding: 4px 7px; border-radius: 6px; backgr
 .rc-bar-top b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .rc-bar .track i { background: var(--bar, var(--text)); transition: transform 0.8s var(--ease); }
 .rc-note { font-size: 13px; color: var(--muted); margin-top: 6px; line-height: 1.38; }
+/* The receipt: where the points came from */
+.receipt { margin-top: 14px; padding-top: 14px; box-shadow: 0 -1px 0 var(--border); }
+.receipt-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--surface-2); gap: 2px; }
+.receipt-bar i { display: block; height: 100%; transition: width 0.8s var(--ease); }
+.receipt-rows { display: grid; gap: 4px; margin-top: 10px; font-size: 13px; }
+.receipt-rows div { display: flex; justify-content: space-between; gap: 12px; }
+.receipt-rows span { color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.receipt-rows span i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.receipt-rows b { font-weight: 500; font-variant-numeric: tabular-nums; }
+.receipt-rows .adj span { color: var(--negative); padding-left: 16px; }
+.receipt-rows .adj b { color: var(--negative); }
+
 /* The item's colour placed against your palette */
 .pal-fit { display: flex; align-items: center; gap: 5px; margin-top: 8px; }
 .pal-fit i { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); flex: none; }
@@ -491,3 +503,25 @@ kbd { font: 500 12px/1 var(--font); padding: 4px 7px; border-radius: 6px; backgr
 @media (prefers-contrast: more) {
   :root { --border: #8a8a85; --rule: #b5b5b0; --muted: #3d3e3a; }
 }
+
+/* ---------- shop a brand ---------- */
+.back-btn { text-decoration: none; padding: 0 6px; margin-left: -6px; }
+.glance { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--surface); border-radius: var(--r-inner); padding: 14px 0; margin-bottom: 24px; }
+.glance div { padding: 0 14px; min-width: 0; }
+.glance div + div { box-shadow: -1px 0 0 var(--border); }
+.glance b { display: block; font: 500 19px/1.2 var(--font); font-variant-numeric: tabular-nums; }
+.glance span { font-size: 12px; color: var(--muted); }
+.shop-card { all: unset; cursor: pointer; flex: 0 0 138px; scroll-snap-align: start; display: grid; gap: 3px; align-content: start; transition: transform 0.1s ease-out; }
+.shop-card:active { transform: scale(0.97); }
+.shop-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--r-inner); }
+.shop-card .img { position: relative; aspect-ratio: 3 / 4; border-radius: var(--r-inner); overflow: hidden; background: var(--surface); margin-bottom: 5px; }
+.shop-card .img img { width: 100%; height: 100%; object-fit: cover; }
+.shop-card .name { font-size: 13px; font-weight: 500; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.shop-card .price { font-size: 13px; font-variant-numeric: tabular-nums; }
+.shop-card .sub { font-size: 12px; color: var(--muted); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.shop-card.muted .img { opacity: 0.6; }
+.score-pill { position: absolute; left: 8px; top: 8px; min-width: 30px; height: 22px; padding: 0 7px; border-radius: 11px; display: grid; place-items: center; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; background: var(--ground); color: var(--text); }
+.score-pill.good { background: var(--pill-pos-bg); color: var(--pill-pos-ink); }
+.score-pill.low { background: var(--pill-neg-bg); color: var(--pill-neg-ink); }
+.find-better { margin: -12px 0 28px; }
+@media (min-width: 760px) { .shop-card { flex-basis: 168px; } }

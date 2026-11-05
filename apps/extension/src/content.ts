@@ -1,4 +1,4 @@
-import { detectProduct } from "@zq/core";
+import { detectProduct, productLinks } from "@zq/core";
 import type { PillSummary, ToBackground, ToContent } from "./lib/messages.ts";
 import { getSettings, onSettings, type Settings } from "./lib/settings.ts";
 import { showCard, startPick } from "./pick.ts";
@@ -63,6 +63,10 @@ async function init() {
   }, 700);
   chrome.runtime.onMessage.addListener((m: ToContent, _s, reply) => {
     if (m.type === "pick-start") startPick();
+    if (m.type === "links") {
+      reply(productLinks(document, location.origin));
+      return false;
+    }
     if (m.type === "rating") showCard(m);
     if (m.type === "detect") {
       reply(detectProduct(document, location.href));

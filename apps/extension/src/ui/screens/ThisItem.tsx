@@ -7,6 +7,7 @@ import { srcToBlob } from "../../lib/images.ts";
 import type { Pick, TabState } from "../../lib/messages.ts";
 import type { StyleProfile } from "../../lib/profile.ts";
 import { RatingPanel } from "../components/Rating.tsx";
+import { BrandShop } from "./BrandShop.tsx";
 import { canTryOn } from "../../lib/vto.ts";
 import { Icon, ItemImg, Page, ZQMark, money, useHud, useSettings } from "../components/kit.tsx";
 
@@ -72,6 +73,8 @@ const takeCache = new Map<string, string>();
 export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { wardrobe: WardrobeItem[]; profile: StyleProfile | null | undefined; onTryOn: (g: { src: string; category: ProductCheck["product"]["category"]; name: string }) => void; goWardrobe: () => void; goStyle: () => void }) {
   const { product, pick, tabId, loading, recheck, clearPick } = useActiveProduct();
   const [showPick, setShowPick] = useState(true);
+  const [shopping, setShopping] = useState<{ origin: string; selected: DetectedProduct | null } | null>(null);
+  useEffect(() => setShopping(null), [tabId]);
   useEffect(() => setShowPick(true), [pick?.at]);
   const settings = useSettings();
   const hud = useHud();
@@ -86,7 +89,8 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
   useEffect(() => {
     setTake(null);
     setTakeErr(null);
-    if (!check || !aiReady(settings) || wardrobe.length === 0) return;
+    // With a style profile the formula's score replaces this take: skip the extra AI call.
+    if (!check || !aiReady(settings) || wardrobe.length === 0 || profile) return;
     const k = `${check.product.url}|${wardrobe.length}`;
     if (takeCache.has(k)) return setTake(takeCache.get(k)!);
     let live = true;
@@ -99,7 +103,13 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
     return () => {
       live = false;
     };
-  }, [check?.product.url, wardrobe.length, aiReady(settings)]);
+  }, [check?.product.url, wardrobe.length, aiReady(settings), !!profile]);
+
+  if (shopping) {
+    return <BrandShop origin={shopping.origin} tabId={tabId} selected={shopping.selected} profile={profile} wardrobe={wardrobe} onBack={() => setShopping(null)} />;
+  }
+
+  const originOf = (u: string) => { try { return new URL(u).origin; } catch { return null; } };
 
   if (pick && showPick) {
     const host = (() => { try { return new URL(pick.url).hostname.replace(/^www\./, ""); } catch { return ""; } })();
@@ -116,6 +126,11 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
           </figure>
           <RatingPanel key={`rate-${pick.src}`} src={pick.src} title={pick.title} url={pick.url} hint={pick.alt} profile={profile} wardrobe={wardrobe} tabId={tabId}
             goStyle={goStyle} onTryOn={(category) => onTryOn({ src: pick.src, category: category as any, name: pick.alt || "this item" })} />
+          {originOf(pick.url)?.startsWith("http") && (
+            <button className="btn gray block find-better" onClick={() => setShopping({ origin: originOf(pick.url)!, selected: { name: pick.alt || "This item", url: pick.url, images: [pick.src], via: "open-graph" } })}>
+              Find better on {host}
+            </button>
+          )}
           <p className="hint" style={{ margin: "0 4px 24px" }}>Rate another: right-click any photo, or press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>X</kbd> and click it.</p>
         </div>
       </div>
@@ -276,6 +291,10 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
             {pairsRail && <><h2 className="section">Outfits it makes</h2>{pairsRail}</>}
           </>
         )}
+
+        <button className="btn gray block find-better" style={{ marginTop: 4 }} onClick={() => setShopping({ origin: new URL(p.url).origin, selected: product })}>
+          Find better on {p.brand || host}
+        </button>
 
         {wardrobe.length < 10 && (
           <button className="btn plain" style={{ display: "flex", margin: "0 auto 8px" }} onClick={goWardrobe}>Add your own clothes for better matches</button>

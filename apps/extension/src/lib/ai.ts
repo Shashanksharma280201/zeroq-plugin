@@ -25,6 +25,8 @@ export interface AskOptions {
   maxTokens?: number;
   /** Ask the provider to return JSON only (Gemini supports this natively) */
   json?: boolean;
+  /** 0 for repeatable answers (ratings); default is the provider's own */
+  temperature?: number;
 }
 
 export async function askAI(system: string, content: Content[], opts: AskOptions = {}): Promise<string> {
@@ -49,6 +51,7 @@ async function askClaude(s: Settings, system: string, content: Content[], opts: 
     body: JSON.stringify({
       model: s.anthropicModel,
       max_tokens: opts.maxTokens ?? 800,
+      ...(opts.temperature != null ? { temperature: opts.temperature } : {}),
       system,
       messages: [{
         role: "user",
@@ -108,6 +111,7 @@ async function askGemini(s: Settings, system: string, content: Content[], opts: 
       // against this limit, so leave generous room.
       maxOutputTokens: Math.max(4096, (opts.maxTokens ?? 800) * 4),
       ...(opts.json ? { responseMimeType: "application/json" } : {}),
+      ...(opts.temperature != null ? { temperature: opts.temperature } : {}),
     },
   });
   const text = (cand.content?.parts ?? []).filter((p: any) => p.text && !p.thought).map((p: any) => p.text).join("");

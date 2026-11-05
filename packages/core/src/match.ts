@@ -4,7 +4,7 @@ import type { Category, ClassifiedProduct, DuplicateMatch, Outfit, PairMatch, Pr
 type Itemish = Pick<WardrobeItem, "category" | "kind" | "colors" | "formality" | "name">;
 
 /** Which categories go with which. */
-const PAIRS_WITH: Record<Category, Category[]> = {
+export const PAIRS_WITH: Record<Category, Category[]> = {
   top: ["bottom", "outerwear", "footwear"],
   bottom: ["top", "outerwear", "footwear"],
   "one-piece": ["outerwear", "footwear", "accessory"],

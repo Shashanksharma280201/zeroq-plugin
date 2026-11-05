@@ -11,6 +11,7 @@ export type ToBackground =
 export type ToContent =
   | { type: "detect" }
   | { type: "pick-start" }
+  | { type: "links" }
   | { type: "rating"; src: string; state: "working" | "done" | "error"; score?: number; verdict?: string; headline?: string };
 
 /** A picked image waiting for (or holding) a rating, kept per tab in session storage. */
