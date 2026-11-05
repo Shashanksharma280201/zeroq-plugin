@@ -29,9 +29,25 @@ export interface AskOptions {
   temperature?: number;
 }
 
+/** Models that rejected a temperature setting this session; we stop sending it to them. */
+const noTemperature = new Set<string>();
+
 export async function askAI(system: string, content: Content[], opts: AskOptions = {}): Promise<string> {
   const s = await getSettings();
-  return s.aiProvider === "claude" ? askClaude(s, system, content, opts) : askGemini(s, system, content, opts);
+  const model = s.aiProvider === "claude" ? s.anthropicModel : s.geminiModel;
+  const call = (o: AskOptions) => (s.aiProvider === "claude" ? askClaude(s, system, content, o) : askGemini(s, system, content, o));
+  if (opts.temperature == null || noTemperature.has(model)) return call({ ...opts, temperature: undefined });
+  try {
+    return await call(opts);
+  } catch (e: any) {
+    // Newer models fix their own sampling and reject `temperature` with a 400.
+    // Repeatability then comes from the formula, so drop it and ask again.
+    if (/\(400\)/.test(e?.message ?? "") && /temperature/i.test(e?.message ?? "")) {
+      noTemperature.add(model);
+      return call({ ...opts, temperature: undefined });
+    }
+    throw e;
+  }
 }
 
 // ---------- Claude ----------
