@@ -31,10 +31,14 @@ function ensureHost() {
   .hint { position: fixed; left: 50%; top: 16px; transform: translate(-50%, -80px); display: flex; gap: 10px; align-items: center; padding: 10px 12px 10px 16px; border-radius: 999px; font-size: 14px; font-weight: 500; transition: transform .4s ${SETTLE}; }
   .hint.on { transform: translate(-50%, 0); }
   .hint kbd { font: 500 12px/1 inherit; padding: 4px 7px; border-radius: 6px; background: var(--track); }
-  .card { position: fixed; width: 264px; padding: 14px; border-radius: 18px; pointer-events: auto; font-size: 13px; line-height: 1.38;
+  .card { position: fixed; width: 272px; padding: 0; overflow: hidden; border-radius: 8px; pointer-events: auto; font-size: 13px; line-height: 1.38;
     opacity: 0; transform: translateY(6px); transition: opacity .2s, transform .35s ${SETTLE}; }
   .card.on { opacity: 1; transform: none; }
-  .row { display: flex; gap: 12px; align-items: center; }
+  .row { display: flex; gap: 12px; align-items: center; padding: 14px; }
+  .fieldc { padding: 14px 16px 12px; background: var(--fb, #f3f1ec); color: var(--fi, #141210); }
+  .big { font: 400 64px/0.85 "Instrument Serif", ui-serif, Georgia, serif; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+  .ital { font: italic 400 20px/1.1 "Instrument Serif", ui-serif, Georgia, serif; margin-top: 4px; }
+  .body { padding: 12px 16px 14px; }
   .score { position: relative; width: 52px; height: 52px; flex: none; }
   .score svg { width: 52px; height: 52px; transform: rotate(-90deg); }
   .score b { position: absolute; inset: 0; display: grid; place-items: center; font: 600 17px/1 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
@@ -43,8 +47,8 @@ function ensureHost() {
   .head { color: var(--muted); margin-top: 3px; }
   .spin { width: 52px; height: 52px; border-radius: 50%; border: 4px solid var(--track); border-top-color: var(--ink); animation: spin .9s linear infinite; flex: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .x { all: unset; cursor: pointer; position: absolute; top: 8px; right: 10px; color: var(--muted); font-size: 13px; padding: 4px; }
-  .more { all: unset; cursor: pointer; display: inline-block; margin-top: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+  .x { all: unset; cursor: pointer; position: absolute; top: 8px; right: 10px; color: var(--fi, var(--muted)); font-size: 13px; padding: 4px; opacity: .7; }
+  .more { all: unset; cursor: pointer; display: inline-block; margin-top: 10px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
   @media (prefers-color-scheme: dark) { :host { --ink: #ffffff; --muted: #b4b4b4; --surface: #1c1c1c; --line: rgba(255,255,255,.1); --track: #2a2a2a; } }
   @media (prefers-reduced-motion: reduce) { * { transition-duration: .01s !important; animation-duration: 2s !important; } }
 </style>
@@ -162,17 +166,15 @@ export function showCard(m: Extract<ToContent, { type: "rating" }>) {
   if (m.state === "working") {
     c.innerHTML = `<div class="row"><div class="spin"></div><div><div class="verdict">Looking at it</div><div class="head">Checking colour, shape and your style.</div></div></div>`;
   } else if (m.state === "error") {
-    c.innerHTML = `<button class="x" aria-label="Close">✕</button><div class="verdict">Could not rate this</div><div class="head">${esc(m.headline ?? "Open the Zero Q panel for details.")}</div>`;
+    c.innerHTML = `<div class="body"><button class="x" aria-label="Close">✕</button><div class="verdict">Couldn't rate this</div><div class="head">${esc(m.headline ?? "Open the Zero Q panel for details.")}</div></div>`;
   } else {
     const s = m.score ?? 0;
-    c.innerHTML = `<button class="x" aria-label="Close">✕</button>
-<div class="row"><div class="score"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="22" fill="none" stroke="var(--track)" stroke-width="5"/><circle class="arc" cx="26" cy="26" r="22" fill="none" stroke="${tone(s)}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></svg><b>0</b></div>
-<div><div class="verdict" style="color:${s >= 55 ? "inherit" : tone(s)}">${esc(m.verdict ?? "")}</div><div class="head">${esc(m.headline ?? "")}</div></div></div>
-<button class="more">See why</button>`;
-    requestAnimationFrame(() => {
-      (c.querySelector(".arc") as SVGCircleElement).style.strokeDashoffset = String(C * (1 - s / 100));
-      countUp(c.querySelector(".score b") as HTMLElement, s);
-    });
+    const hex = m.hex && /^#[0-9a-f]{6}$/i.test(m.hex) ? m.hex : "#f3f1ec";
+    const ink = luminance(hex) > 0.32 ? "#141210" : "#fbf8f2";
+    c.innerHTML = `<div class="fieldc" style="--fb:${hex};--fi:${ink}"><button class="x" aria-label="Close">✕</button>
+<div class="big"><b>0</b></div><div class="ital">${esc((m.verdict ?? "").toLowerCase())}</div></div>
+<div class="body"><div class="head" style="color:inherit">${esc(m.headline ?? "")}</div><button class="more">See the reading</button></div>`;
+    requestAnimationFrame(() => countUp(c.querySelector(".big b") as HTMLElement, s));
     c.querySelector(".more")!.addEventListener("click", () => chrome.runtime.sendMessage({ type: "open-panel" } satisfies ToBackground));
   }
   c.querySelector(".x")?.addEventListener("click", () => c.classList.remove("on"));
@@ -188,6 +190,11 @@ function countUp(el: HTMLElement, to: number) {
     if (k < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
+}
+
+function luminance(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);

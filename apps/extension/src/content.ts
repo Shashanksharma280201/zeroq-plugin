@@ -92,6 +92,8 @@ function createPill() {
   .wrap.on { opacity: 1; transform: none; pointer-events: auto; }
   button { all: unset; cursor: pointer; -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
   .pill, .rate, .x, .toast { background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 8px 24px rgba(0,0,0,.14); }
+  .pill { background: #141210; color: #fbf8f2; box-shadow: 0 8px 24px rgba(0,0,0,.22); }
+  .pill .chev { opacity: .6; }
   .pill { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px 0 12px; border-radius: 22px; transition: transform .1s ease-out; }
   .pill:active, .rate:active { transform: scale(.96); }
   .pill:focus-visible, .x:focus-visible, .rate:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }

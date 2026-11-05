@@ -121,14 +121,15 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
           <button className="btn plain small" style={{ textDecoration: "none" }} onClick={() => { setShowPick(false); if (!product) clearPick(); }}>{product ? "Page item" : "Done"}</button>
         </header>
         <div className="content">
-          <figure className="hero solo" key={`hero-${pick.src}`}>
-            <img className="hero-img" src={pick.src} alt={pick.alt ?? "Picked item"} referrerPolicy="no-referrer" />
+          <figure className="photo" key={`hero-${pick.src}`}>
+            <img src={pick.src} alt={pick.alt ?? "Picked item"} referrerPolicy="no-referrer" />
+            <figcaption className="caps">{[host, pick.alt].filter(Boolean).join(" / ")}</figcaption>
           </figure>
           <RatingPanel key={`rate-${pick.src}`} src={pick.src} title={pick.title} url={pick.url} hint={pick.alt} profile={profile} wardrobe={wardrobe} tabId={tabId}
             goStyle={goStyle} onTryOn={(category) => onTryOn({ src: pick.src, category: category as any, name: pick.alt || "this item" })} />
           {originOf(pick.url)?.startsWith("http") && (
-            <button className="btn gray block find-better" onClick={() => setShopping({ origin: originOf(pick.url)!, selected: { name: pick.alt || "This item", url: pick.url, images: [pick.src], via: "open-graph" } })}>
-              Find better on {host}
+            <button className="find-better" onClick={() => setShopping({ origin: originOf(pick.url)!, selected: { name: pick.alt || "This item", url: pick.url, images: [pick.src], via: "open-graph" } })}>
+              <span>Find better on {host}</span><span className="chev" aria-hidden>›</span>
             </button>
           )}
           <p className="hint" style={{ margin: "0 4px 24px" }}>Rate another: right-click any photo, or press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>X</kbd> and click it.</p>
@@ -224,14 +225,11 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
       </header>
 
       <div className="content">
-        <figure className="hero" key={p.url}>
-          {p.images[0] ? <img className="hero-img" src={p.images[0]} alt={p.name} referrerPolicy="no-referrer" /> : <div className="hero-img" />}
-          <figcaption className="hero-cap">
-            {p.brand && <div className="brand">{p.brand}</div>}
-            <div className="pname">{p.name}</div>
-            {p.price != null && <div className="price">{money(p.price, p.currency)}</div>}
-          </figcaption>
+        <figure className="photo" key={p.url}>
+          {p.images[0] ? <img src={p.images[0]} alt={p.name} referrerPolicy="no-referrer" /> : <div className="ph" />}
+          <figcaption className="caps">{[p.brand, p.price != null ? money(p.price, p.currency) : null].filter(Boolean).join(" / ")}</figcaption>
         </figure>
+        <h1 className="item-title">{p.name}</h1>
 
         {scored ? (
           <>
@@ -292,8 +290,8 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
           </>
         )}
 
-        <button className="btn gray block find-better" style={{ marginTop: 4 }} onClick={() => setShopping({ origin: new URL(p.url).origin, selected: product })}>
-          Find better on {p.brand || host}
+        <button className="find-better" onClick={() => setShopping({ origin: new URL(p.url).origin, selected: product })}>
+          <span>Find better on {p.brand || host}</span><span className="chev" aria-hidden>›</span>
         </button>
 
         {wardrobe.length < 10 && (

@@ -33,7 +33,7 @@ export function RatingPanel({
     if (cache.has(src) && !nonce) {
       const r = cache.get(src)!;
       setRating(r);
-      tell({ state: "done", score: r.score, verdict: r.verdict, headline: r.headline });
+      tell({ state: "done", score: r.score, verdict: r.verdict, headline: r.headline, hex: r.item.hex });
       return;
     }
     let live = true;
@@ -45,7 +45,7 @@ export function RatingPanel({
       cache.set(src, r);
       if (!live) return;
       setRating(r);
-      tell({ state: "done", score: r.score, verdict: r.verdict, headline: r.headline });
+      tell({ state: "done", score: r.score, verdict: r.verdict, headline: r.headline, hex: r.item.hex });
     })().catch((e) => {
       if (!live) return;
       setErr(e.message ?? String(e));
@@ -92,143 +92,111 @@ export function RatingPanel({
 
   if (!rating) {
     return (
-      <section className="rate-card thinking">
-        <div className="rc-top">
-          <div className="rc-avatar"><Avatar a={profile.avatar} mood="think" size={80} /></div>
-          <div className="grow">
-            <div className="rc-row">
-              <div className="ring"><svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" className="ring-track" /></svg></div>
-              <div className="rc-verdict">Looking at it</div>
-            </div>
-            <div className="skeleton" style={{ width: "92%", marginTop: 12 }} />
-            <div className="skeleton" style={{ width: "64%" }} />
+      <>
+        <section className="cfield waiting" aria-busy="true">
+          <div className="field-top">
+            <div className="field-score"><span className="num pulse">00</span></div>
+            <div className="field-avatar"><Avatar a={profile.avatar} mood="think" size={72} /></div>
           </div>
-        </div>
-      </section>
+          <div className="field-verdict">reading the photo</div>
+          <div className="skeleton" style={{ width: "88%", marginTop: 14 }} />
+          <div className="skeleton" style={{ width: "60%" }} />
+        </section>
+      </>
     );
   }
 
   return <RatingResult r={rating} profile={profile} wardrobe={wardrobe} onTryOn={onTryOn} onRedo={() => setNonce((n) => n + 1)} />;
 }
 
-const band = (s: number) => (s >= 75 ? "good" : s >= 55 ? "mid" : "low");
-const barColour = (s: number) => (s >= 75 ? "var(--positive)" : s >= 55 ? "var(--text)" : "var(--negative)");
+/** The colour field's ink: dark on light colours, light on dark ones. */
+export function fieldInk(hex: string): { ink: string; soft: string } {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return L > 0.32 ? { ink: "#141210", soft: "rgba(20,18,16,.72)" } : { ink: "#fbf8f2", soft: "rgba(251,248,242,.78)" };
+}
+
+const PART_SHORT: Record<string, string> = { colour: "colour", style: "style", shape: "shape", wardrobe: "wardrobe", occasion: "occasion" };
 
 function RatingResult({ r, profile, wardrobe, onTryOn, onRedo }: { r: Rating; profile: StyleProfile; wardrobe: WardrobeItem[]; onTryOn?: (c: string) => void; onRedo: () => void }) {
   const pairs = r.wardrobe.pairsWith.map((id) => wardrobe.find((w) => w.id === id)).filter(Boolean) as WardrobeItem[];
-  return (
-    <section className={`rate-card ${band(r.score)}`}>
-      <div className="rc-top">
-        <div className="rc-avatar"><Avatar a={profile.avatar} wear={{ category: r.item.category, hex: r.item.hex }} size={80} /></div>
-        <div className="grow">
-          <div className="rc-row">
-            <ScoreRing value={r.score} />
-            <div className="rc-verdict">{r.verdict}</div>
-          </div>
-          <div className="rc-head">{r.headline}</div>
-        </div>
-      </div>
-
-      <Receipt r={r} />
-
-      <div className="rc-bars">
-        {r.parts.filter((p) => p.key !== "wardrobe" || !pairs.length).map((p) => (
-          <Bar key={p.key} label={p.label} part={{ score: p.value, note: r.notes[p.key] ?? p.why }}>
-            {p.key === "colour" && <PaletteFit palette={profile.palette.best} item={r.item.hex} name={r.item.color} />}
-          </Bar>
-        ))}
-      </div>
-
-      {(pairs.length > 0 || r.wardrobe.note) && (
-        <div className="rc-block">
-          <div className="rc-label">With what you own</div>
-          {pairs.length > 0 && <div className="rc-thumbs">{pairs.map((i) => <ItemImg key={i.id} item={i} />)}</div>}
-          <div className="rc-note">{r.wardrobe.note}</div>
-        </div>
-      )}
-
-      {r.occasions.length > 0 && (
-        <div className="rc-block">
-          <div className="rc-label">Wear it to</div>
-          <div className="words">{r.occasions.map((o) => <span key={o}>{o}</span>)}</div>
-        </div>
-      )}
-
-      {r.watchOut && <div className="rc-watch"><Icon.alert />{r.watchOut}</div>}
-
-      <div className="rc-actions">
-        {onTryOn && /top|bottom|one-piece|outerwear/.test(r.item.category) && (
-          <button className="btn filled small" onClick={() => onTryOn(r.item.category)}><Icon.person /> Try it on</button>
-        )}
-        <button className="btn plain small" onClick={onRedo}>Rate again</button>
-      </div>
-    </section>
-  );
-}
-
-const PART_COLOUR: Record<string, string> = { colour: "var(--accent)", style: "var(--text)", shape: "var(--muted)", wardrobe: "var(--faint)", occasion: "var(--control)" };
-
-/** Where the points came from: one stacked bar, then any adjustment or cap that changed the total. */
-function Receipt({ r }: { r: Rating }) {
-  const scale = r.raw > 0 ? r.score / Math.max(r.score, r.raw) : 0;
-  return (
-    <div className="receipt" aria-label={`Score ${r.score}: ${r.parts.map((p) => `${p.label} ${Math.round(p.points)} points`).join(", ")}`}>
-      <div className="receipt-bar">
-        {r.parts.map((p) => <i key={p.key} style={{ width: `${p.points * scale}%`, background: PART_COLOUR[p.key] }} title={`${p.label}: ${Math.round(p.points)} points`} />)}
-      </div>
-      <div className="receipt-rows">
-        {r.parts.map((p) => (
-          <div key={p.key}><span><i style={{ background: PART_COLOUR[p.key] }} />{p.label}</span><b>{Math.round(p.points)}</b></div>
-        ))}
-        {r.adjustments.map((a) => <div key={a.reason} className="adj"><span>{a.reason}</span><b>{a.delta}</b></div>)}
-        {r.caps[0] && r.raw + r.adjustments.reduce((s, a) => s + a.delta, 0) > r.caps[0].cap && (
-          <div className="adj"><span>{r.caps[0].reason}, capped at</span><b>{r.caps[0].cap}</b></div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ScoreRing({ value }: { value: number }) {
-  const C = 2 * Math.PI * 26;
-  const [shown, setShown] = useState(0);
-  const arc = useRef<SVGCircleElement>(null);
+  const shown = useCountUp(r.score);
+  const [flood, setFlood] = useState(false);
   useEffect(() => {
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return setShown(value);
+    const t = requestAnimationFrame(() => setFlood(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+  const hex = /^#[0-9a-f]{6}$/i.test(r.item.hex) ? r.item.hex : "#8a8580";
+  const { ink, soft } = fieldInk(hex);
+  const capped = r.caps[0] && r.raw + r.adjustments.reduce((s, a) => s + a.delta, 0) > r.caps[0].cap ? r.caps[0] : null;
+  return (
+    <>
+      <section className={`cfield ${flood ? "flooded" : ""}`} style={{ "--field": hex, "--field-ink": ink, "--field-soft": soft } as any} aria-label={`Score ${r.score} out of 100, ${r.verdict}`}>
+        <div className="field-top">
+          <div className="field-score"><span className="num">{String(shown).padStart(2, "0")}</span><span className="of">/100</span></div>
+          <div className="field-avatar"><Avatar a={profile.avatar} wear={{ category: r.item.category, hex: r.item.hex }} size={72} /></div>
+        </div>
+        <div className="field-verdict">{r.verdict.toLowerCase()}</div>
+        <p className="field-head">{r.headline}</p>
+        {r.item.color && <div className="field-caption">Read as {r.item.color.toLowerCase()}</div>}
+      </section>
+
+      <section className="reading">
+        <h2 className="caps">The reading</h2>
+        {r.parts.map((p) => (
+          <div className="lead" key={p.key}>
+            <div className="lead-row"><span>{p.label}</span><i aria-hidden /><b>{p.value}</b></div>
+            {p.key === "colour" && <PaletteFit palette={profile.palette.best} item={r.item.hex} name={r.item.color} />}
+            <p className="lead-note">{r.notes[p.key] ?? p.why}</p>
+          </div>
+        ))}
+        <p className="equation">
+          <b>{r.score}</b> = {r.parts.map((p, i) => <span key={p.key}>{i > 0 && " + "}{Math.round(p.points)} {PART_SHORT[p.key]}</span>)}
+          {r.adjustments.map((a) => <span key={a.reason} className="minus"> {a.delta < 0 ? "−" : "+"} {Math.abs(a.delta)} budget</span>)}
+          {capped && <span className="minus">, capped at {capped.cap}: {capped.reason.toLowerCase()}</span>}
+        </p>
+
+        {(pairs.length > 0 || r.wardrobe.note) && (
+          <div className="lead">
+            <div className="lead-row"><span>Wear it with</span><i aria-hidden /><b>{pairs.length || ""}</b></div>
+            {pairs.length > 0 && <div className="rc-thumbs">{pairs.map((i) => <ItemImg key={i.id} item={i} />)}</div>}
+            {r.wardrobe.note && <p className="lead-note">{r.wardrobe.note}</p>}
+          </div>
+        )}
+        {r.occasions.length > 0 && (
+          <div className="lead">
+            <div className="lead-row"><span>Wear it to</span><i aria-hidden /><b /></div>
+            <p className="lead-note">{r.occasions.join(", ")}</p>
+          </div>
+        )}
+        {r.watchOut && <p className="watch">{r.watchOut}</p>}
+
+        <div className="rc-actions">
+          {onTryOn && /top|bottom|one-piece|outerwear/.test(r.item.category) && (
+            <button className="btn filled small" onClick={() => onTryOn(r.item.category)}><Icon.person /> Try it on</button>
+          )}
+          <button className="btn plain small" onClick={onRedo}>Rate again</button>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function useCountUp(value: number): number {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return setShown(value);
     const t0 = performance.now();
     let raf = 0;
     const step = (t: number) => {
-      const k = Math.min(1, (t - t0) / 1100);
+      const k = Math.min(1, (t - t0) / 900);
       setShown(Math.round(value * (1 - Math.pow(1 - k, 3))));
       if (k < 1) raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
-    requestAnimationFrame(() => arc.current && (arc.current.style.strokeDashoffset = String(C * (1 - value / 100))));
     return () => cancelAnimationFrame(raf);
   }, [value]);
-  return (
-    <div className="ring" aria-label={`Score ${value} out of 100`}>
-      <svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" className="ring-track" /><circle ref={arc} cx="30" cy="30" r="26" className="ring-arc" strokeDasharray={C} strokeDashoffset={C} /></svg>
-      <b>{shown}</b>
-    </div>
-  );
-}
-
-function Bar({ label, part, children }: { label: string; part: { score: number; note: string }; children?: React.ReactNode }) {
-  const [w, setW] = useState(0);
-  useEffect(() => {
-    const t = requestAnimationFrame(() => setW(part.score));
-    return () => cancelAnimationFrame(t);
-  }, [part.score]);
-  return (
-    <div className="rc-bar">
-      <div className="rc-bar-top"><span>{label}</span><b>{part.score}</b></div>
-      <div className="track"><i style={{ transform: `scaleX(${w / 100})`, ["--bar" as any]: barColour(part.score) }} /></div>
-      {children}
-      <div className="rc-note">{part.note}</div>
-    </div>
-  );
+  return shown;
 }
 
 /**
