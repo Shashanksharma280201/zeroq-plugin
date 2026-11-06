@@ -13,6 +13,8 @@ About 20 minutes. You need Chrome on a laptop, a Google account and 5 photos of 
 
 ## 2. Install the extension (2 min)
 
+Firefox and Safari: see the browser table in [README.md](README.md#install). The steps below use Chrome.
+
 1. Unzip `zeroq-extension.zip` into a folder you will keep (Chrome loads it from there).
    Or from the repo: `npm install && npm run build`, then use `apps/extension/dist`.
 2. Open `chrome://extensions`, turn on **Developer mode** (top right).
@@ -81,6 +83,23 @@ If Gemini changes your face or body too much, in Settings try another model (`ge
 ## 8. Compare with Claude (optional)
 
 Settings, AI: **Claude**, paste a Claude key, rate the same 10 items again (use **Rate again**). Keep whichever is more honest about you. The profile stays; only the rater changes.
+
+## 9. Memory (5 min)
+
+1. Rate a few items. Under each score, answer **Is this score right?** (try "Too low" and pick a reason).
+2. On a product page, tap **I bought this** for one or two items, ideally above your stated budget.
+3. Open **You** and scroll to **What Zero Q has learned**: purchases, median spend against your stated budget, colours you choose.
+4. After 5 or more purchases, try-ons kept or score answers, tap **Write notes now**. Delete a note you disagree with; it will not come back.
+5. Rate something in a colour you bought but listed as go-easy, or priced near what you paid before. An **Outside your usual** note shows both scores and the reason. **Not for me** teaches it to hold back.
+6. **Find better** on a brand shows up to 2 such picks under **Outside your usual**.
+
+## 10. Google Drive sync (10 min, Chrome, Edge, Brave or Firefox)
+
+1. In Settings, open **How to get a client ID** and follow it. Copy the redirect URL shown there into the OAuth client.
+2. Paste the client ID, choose a passphrase (8+ characters), tap **Connect Google Drive** and sign in.
+3. It syncs straight away; **Last sync** shows the time. Drive's storage page lists "Zero Q" under hidden app data.
+4. In a second browser (or a second Chrome profile), install Zero Q, add that browser's redirect URL to the same client, and connect with the same client ID and passphrase. Your wardrobe, photos, profile, history and notes appear.
+5. A wrong passphrase is refused with a clear message.
 
 ## Costs while testing (rough)
 

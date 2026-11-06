@@ -4,3 +4,4 @@ export * from "./classify.ts";
 export * from "./match.ts";
 export * from "./score.ts";
 export * from "./catalog.ts";
+export * from "./memory.ts";

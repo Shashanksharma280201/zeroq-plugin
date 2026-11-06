@@ -10,7 +10,10 @@
     "build": "npm run build -w @zq/extension",
     "dev": "npm run dev -w @zq/extension",
     "test": "vitest run",
-    "typecheck": "tsc -p packages/core && tsc -p apps/extension"
+    "typecheck": "tsc -p packages/core && tsc -p apps/extension",
+    "build:all": "npm run build:all -w @zq/extension",
+    "build:firefox": "npm run build:firefox -w @zq/extension",
+    "build:safari": "npm run build:safari -w @zq/extension"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

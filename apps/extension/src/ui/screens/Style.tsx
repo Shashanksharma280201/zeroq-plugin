@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { MemoryView } from "../components/MemoryView.tsx";
 import {
   buildProfile, clearProfile, getOutfitPhotos, saveOutfitPhotos, saveProfile,
   type Answers, type Avatar as AvatarT, type StyleProfile,
@@ -281,6 +282,7 @@ function ProfileView({ p, onRedo }: { p: StyleProfile; onRedo: () => void }) {
       </div>
       <PaletteBand p={p} />
       <ProfileDetails p={p} />
+      <MemoryView p={p} />
       <div className="group">
         <div className="row">
           <span className="grow">Use my build in advice</span>
@@ -289,7 +291,7 @@ function ProfileView({ p, onRedo }: { p: StyleProfile; onRedo: () => void }) {
         <button className="row" onClick={onRedo}><span className="grow link">Redo with new photos</span><span className="chev">›</span></button>
         <button className="row" onClick={async () => { await clearProfile(); hud("Profile deleted"); }}><span className="grow danger-link">Delete profile and photos</span></button>
       </div>
-      <p className="group-footer">Built from {p.photoCount} outfits on {new Date(p.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "long" })}. Stored only in this browser.</p>
+      <p className="group-footer">Built from {p.photoCount} outfits on {new Date(p.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "long" })}. Stored in this browser.</p>
     </Page>
   );
 }

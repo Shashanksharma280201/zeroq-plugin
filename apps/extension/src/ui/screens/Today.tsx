@@ -1,3 +1,4 @@
+import { logEvent } from "../../lib/events.ts";
 import { aiReady } from "../../lib/settings.ts";
 import { useEffect, useState } from "react";
 import { buildOutfits, occasionFormality, type Outfit, type WardrobeItem } from "@zq/core";
@@ -43,7 +44,10 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
       return;
     }
     planOutfits(occ, wardrobe, round ? "Give me different options from last time." : "")
-      .then((o) => live && (setOutfits(o.length ? o : offline()), setAiUsed(o.length > 0)))
+      .then((o) => {
+        if (o.length) logEvent("outfit_suggested", { occasion, outfits: o.map((x) => x.itemIds) }).catch(() => {});
+        if (live) (setOutfits(o.length ? o : offline()), setAiUsed(o.length > 0));
+      })
       .catch((e) => live && (setErr(e.message), setOutfits(offline()), setAiUsed(false)));
     return () => {
       live = false;
@@ -64,7 +68,7 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
   }
 
   const wear = async (o: Outfit) => {
-    await markWorn(o.itemIds);
+    await markWorn(o.itemIds, occasion);
     hud("Enjoy your day");
   };
 

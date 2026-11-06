@@ -1,6 +1,7 @@
+import { logEvent } from "../../lib/events.ts";
 import { useEffect, useRef, useState } from "react";
 import type { Category } from "@zq/core";
-import { getBlob, putBlob } from "../../lib/db.ts";
+import { blobHashFor, getBlob, putBlob } from "../../lib/db.ts";
 import { downscale, srcToBlob } from "../../lib/images.ts";
 import { MODEL_PHOTO_KEY, setSettings, tryOnReady } from "../../lib/settings.ts";
 import { tryOn } from "../../lib/vto.ts";
@@ -13,7 +14,18 @@ export interface Garment {
   src?: string;
   /** blob key of a wardrobe photo */
   blobKey?: string;
+  /** main colour, when a rating found it */
+  hex?: string;
+  itemKey?: string;
 }
+
+const tryOnPayload = (g: Garment, kept: boolean) => ({
+  itemKey: g.itemKey,
+  name: g.name,
+  category: g.category,
+  colors: g.hex ? [{ name: "", hex: g.hex }] : undefined,
+  kept,
+});
 
 /**
  * The reveal: your photo sits on stage, a soft scan runs while the model
@@ -41,6 +53,7 @@ export function TryOnSheet({ garment, onClose }: { garment: Garment | null; onCl
   const savePhoto = async (f: File) => {
     await putBlob(MODEL_PHOTO_KEY, await downscale(f, 1280));
     await setSettings({ hasModelPhoto: true });
+    await logEvent("photo_set", { key: MODEL_PHOTO_KEY, hash: await blobHashFor(MODEL_PHOTO_KEY) });
     setBump((b) => b + 1);
     setResult(null);
   };
@@ -62,6 +75,7 @@ export function TryOnSheet({ garment, onClose }: { garment: Garment | null; onCl
       // Preload so the wipe never shows a half loaded image.
       await new Promise<void>((res, rej) => { const i = new Image(); i.onload = () => res(); i.onerror = () => rej(new Error("Could not load the result.")); i.src = url; });
       setResult(url);
+      logEvent("tryon_run", tryOnPayload(garment, false), { itemKey: garment.itemKey }).catch(() => {});
     } catch (e: any) {
       if (e.name !== "AbortError") setErr(e.message ?? String(e));
     } finally {
@@ -110,7 +124,7 @@ export function TryOnSheet({ garment, onClose }: { garment: Garment | null; onCl
             <button className="btn gray" onClick={() => pick.current?.click()}>Change photo</button>
             <button className="btn filled" disabled={!ready || !!status} onClick={run}>{result ? "Try again" : status ? "Working" : "Try it on"}</button>
           </div>
-          {result && <a className="btn plain" href={result} download="zeroq-tryon.png" target="_blank" rel="noreferrer" style={{ display: "flex", margin: "-16px auto 0" }}>Save image</a>}
+          {result && <a className="btn plain" onClick={() => garment && logEvent("tryon_run", tryOnPayload(garment, true), { itemKey: garment.itemKey }).catch(() => {})} href={result} download="zeroq-tryon.png" target="_blank" rel="noreferrer" style={{ display: "flex", margin: "-16px auto 0" }}>Save image</a>}
         </>
       )}
     </Sheet>

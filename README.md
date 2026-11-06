@@ -1,6 +1,6 @@
 # Zero Q
 
-A personal Chrome extension that brings your wardrobe to every shopping site.
+A personal browser extension that brings your wardrobe to every shopping site. Runs on Chrome, Edge, Brave, Opera, Arc, Firefox and Safari.
 
 On any product page it tells you whether the item goes with what you own, warns you when you already have something like it, and lets you try it on with your own photo. A full-page wardrobe holds your clothes and plans outfits for the day.
 
@@ -15,6 +15,10 @@ On any product page it tells you whether the item goes with what you own, warns 
 - **Stylist (optional).** With a Gemini or Claude key: a short honest take on each product, photo tagging when you add clothes, outfits for any occasion, and the gaps in your wardrobe.
 - **Try-on (optional).** With Gemini (default) or FASHN: see the item on your photo, with a drag to compare. Colour and silhouette only, never fit.
 - **Wardrobe.** Start with 5 tops and 5 bottoms. "I bought this" on a product page adds it with its photo.
+- **Memory.** Every rating, pick, brand scan, try-on, purchase and score answer is saved in a local log, forever unless you clear it. A taste memory built from it (what you actually spend, the colours and brands you keep choosing, how you rate Zero Q's scores) goes into every AI request, and once a week the AI writes short notes on your taste that you can delete. See [MEMORY.md](MEMORY.md).
+- **Outside your usual.** Budget, occasion and colour limits are soft. When your history says you would like something anyway, Zero Q shows it, at most 2 per list, with the reason ("over your usual budget, but you have bought 2 pieces near this price") and a "Not for me" button. Never-wear stays hard. Turn it off in Settings.
+- **Is this score right?** Tap too low, about right or too high under any score, and say why. It teaches the memory.
+- **Google Drive sync (optional).** History, wardrobe, profile and photos go to a hidden folder in your own Drive, encrypted with a passphrase, so every browser you use has the same Zero Q.
 
 ## How it shows up
 
@@ -32,12 +36,20 @@ Chrome does not let extensions open the side panel without a click or a key pres
 
 ```bash
 npm install
-npm run build
+npm run build:all     # or build, build:firefox, build:safari
 ```
 
-Open `chrome://extensions`, turn on Developer mode, click **Load unpacked** and choose `apps/extension/dist`.
+| Browser | Build | Install | Panel |
+| --- | --- | --- | --- |
+| Chrome, Edge, Brave, Opera, Arc | `apps/extension/dist` | Extensions page, Developer mode, **Load unpacked** | Side panel (Chrome, Edge, Brave); a tab on Opera and Arc |
+| Firefox 128+ | `apps/extension/dist-firefox` | `about:debugging`, This Firefox, **Load Temporary Add-on**, pick `manifest.json` (stays until restart). To keep it, sign it as unlisted on addons.mozilla.org, or use Firefox Developer Edition with `xpinstall.signatures.required` off | Sidebar |
+| Safari 17+ (Mac) | `apps/extension/dist-safari` | `xcrun safari-web-extension-converter apps/extension/dist-safari --app-name "Zero Q"`, run the app from Xcode, then enable it in Safari, Settings, Extensions (allow unsigned extensions in the Develop menu) | A tab next to the shop |
 
-For development, `npm run dev` rebuilds on save; click the reload icon on the extension card after changes to the background or content script.
+Chrome stays in `dist/` on purpose: an unpacked extension's ID comes from its folder, and your data lives under that ID.
+
+On Firefox, give Zero Q access to all sites when asked (or in the add-on's Permissions tab); without it, product pages are not read. Safari asks per site the first time.
+
+For development, `npm run dev` rebuilds the Chrome build on save; click the reload icon on the extension card after changes to the background or content script.
 
 ## Keys and providers
 
@@ -56,16 +68,21 @@ Model IDs are editable in Settings because providers rename them. See [TESTING.m
 
 ## Data
 
-Everything is stored in IndexedDB in your Chrome profile. Nothing syncs. Use Settings, Back up wardrobe before removing the extension or moving machines.
+Everything is stored in IndexedDB in your browser profile: wardrobe, photos, profile, the event log and the taste memory. Nothing leaves the browser except what you send to your AI and try-on providers, and, if you turn it on, encrypted files in your own Google Drive.
+
+**Drive sync** needs a free OAuth client ID from Google Cloud (Settings shows the steps and the exact redirect URL to add). Use the same client ID and passphrase in each browser, and add each browser's redirect URL to the client. Safari cannot sign in to Google from an extension, so sync is off there; use **Back up everything** and **Restore** to move data in or out.
+
+**Back up everything** saves one JSON file with your wardrobe, profile, photos and full history.
 
 ## Layout
 
 ```
-packages/core       product detection, classification, matching, outfits (tested)
+packages/core       product detection, matching, the score formula, memory and stretch maths (tested)
 apps/extension
   src/content.ts    runs on pages, detects products, shows the floating button
-  src/background.ts badge, side panel, per-tab product state
-  src/lib/          IndexedDB, settings, Claude client, FASHN client, image helpers
+  src/background.ts badge, panel, per-tab state, memory and sync alarms
+  src/lib/          IndexedDB, event log, Drive sync, settings, AI clients, platform shims
+  build.mjs         one source, three builds: Chrome family, Firefox, Safari
   src/ui/           React UI shared by the side panel and the full-page wardrobe
 ```
 

@@ -1,3 +1,4 @@
+import "./lib/platform.ts";
 import { detectProduct, productLinks } from "@zq/core";
 import type { PillSummary, ToBackground, ToContent } from "./lib/messages.ts";
 import { getSettings, onSettings, type Settings } from "./lib/settings.ts";

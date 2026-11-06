@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "dev": "node build.mjs --watch"
+    "dev": "node build.mjs --watch",
+    "build:firefox": "node build.mjs --target firefox",
+    "build:safari": "node build.mjs --target safari",
+    "build:all": "node build.mjs --target all"
   },
   "dependencies": {
     "@zq/core": "*",

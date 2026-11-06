@@ -1,6 +1,6 @@
 import {
-  PAIRS_WITH, budgetMax, classifyProduct, colorHarmony, colourPart, scoreItem, textFacts, wardrobeFacts,
-  type ClassifiedProduct, type DetectedProduct, type WardrobeItem,
+  PAIRS_WITH, STRETCH_PER_LIST, budgetMax, classifyProduct, colorHarmony, colourPart, isStretchPick, scoreItem, stretchFor, textFacts, wardrobeFacts,
+  type ClassifiedProduct, type DetectedProduct, type ItemFacts, type Stretch, type TasteMemory, type WardrobeFacts, type WardrobeItem,
 } from "@zq/core";
 import type { Catalog } from "./catalog.ts";
 import { srcToBlob } from "./images.ts";
@@ -22,6 +22,10 @@ export interface Pick {
   /** the score to show: the AI-backed one when we have it */
   score: number;
   reason: string;
+  facts?: ItemFacts;
+  wf?: WardrobeFacts;
+  /** set when it breaks a soft limit but your history says you would like it */
+  stretch?: Stretch;
 }
 
 export interface ShopResult {
@@ -31,6 +35,8 @@ export interface ShopResult {
   better: Pick[];
   withIt: Pick[];
   alsoForYou: Pick[];
+  /** at most 2, outside your usual budget, occasion or colours */
+  stretch: Pick[];
   owned: Pick[];
   stats: { inPalette: number; withinBudget: number | null; priceMin?: number; priceMax?: number; categories: Array<[string, number]> };
   aiScored: boolean;
@@ -47,6 +53,8 @@ export async function shopBrand(opts: {
   profile: StyleProfile | null;
   wardrobe: WardrobeItem[];
   useAI: boolean;
+  memory?: TasteMemory | null;
+  stretchPicks?: boolean;
   signal?: AbortSignal;
   onProgress?: (done: number, total: number) => void;
 }): Promise<ShopResult> {
@@ -64,11 +72,12 @@ export async function shopBrand(opts: {
     .filter((p) => p.category !== "other" && p.images.length)
     .map((product) => {
       const wf = wardrobeFacts(product, wardrobe, selItem);
-      const r = sp
-        ? scoreItem(textFacts(product, sp), sp, wf)
+      const facts = sp ? textFacts(product, sp) : undefined;
+      const r = sp && facts
+        ? scoreItem(facts, sp, wf)
         : { score: Math.round(40 + 12 * Math.min(wf.pairs, 4) - (wf.twin >= 0.85 ? 40 : 0)), parts: [], caps: [] as Array<{ reason: string }> };
       const reason = r.caps[0]?.reason ?? (wf.twin >= 0.85 ? `Like your ${wf.twinName?.toLowerCase()}` : wf.pairs ? `Goes with ${wf.pairs} of yours` : "");
-      return { product, pre: r.score, score: r.score, reason };
+      return { product, pre: r.score, score: r.score, reason, facts, wf };
     });
 
   // Your look-alikes: things you already own. Shown so you can skip them.
@@ -96,10 +105,21 @@ export async function shopBrand(opts: {
     sel ? PER_GROUP : 3 * PER_GROUP,
   );
 
+  // Outside your usual: from what is left, the pieces your history would rescue.
+  const stretchOf = (p: Pick, base?: Rating) =>
+    sp && opts.stretchPicks !== false && (base?.facts ?? p.facts) ? stretchFor(base?.facts ?? p.facts!, sp, base?.wf ?? p.wf!, opts.memory ?? null, base) : null;
+  let stretch = pool
+    .filter((p) => !chosen.has(p.product.url))
+    .map((p) => ((p.stretch = stretchOf(p) ?? undefined), p))
+    .filter((p) => p.stretch && p.stretch.score > p.pre)
+    .sort((a, b) => b.stretch!.score - a.stretch!.score)
+    .slice(0, STRETCH_PER_LIST * 2);
+  for (const p of stretch) chosen.add(p.product.url);
+
   // ---------- pass 2: the shortlist, with photos ----------
   let aiScored = false;
   if (opts.useAI && profile) {
-    const shortlist = [...better, ...withIt, ...also];
+    const shortlist = [...better, ...withIt, ...also, ...stretch];
     let done = 0;
     opts.onProgress?.(0, shortlist.length);
     for (let i = 0; i < shortlist.length; i += BATCH) {
@@ -113,6 +133,7 @@ export async function shopBrand(opts: {
             profile,
             wardrobe,
             extra: selItem,
+            memory: opts.memory,
           }).catch(() => ok.map(() => null))
         : [];
       ok.forEach((g, k) => {
@@ -138,6 +159,15 @@ export async function shopBrand(opts: {
     .filter((p) => p.score >= 55)
     .sort((a, b) => Number(b.rating?.wardrobe.pairsWith.includes(SELECTED_ID) ?? false) - Number(a.rating?.wardrobe.pairsWith.includes(SELECTED_ID) ?? false) || byScore(a, b));
   also = also.filter((p) => p.score >= 55).sort(byScore);
+  stretch = stretch
+    .map((p) => {
+      if (p.rating) p.stretch = stretchOf(p, p.rating) ?? undefined;
+      return p;
+    })
+    .filter((p) => isStretchPick(p.stretch ?? null))
+    .sort((a, b) => b.stretch!.score - a.stretch!.score)
+    .slice(0, STRETCH_PER_LIST);
+  for (const p of stretch) p.reason = p.stretch!.reasons[0].label;
 
   // ---------- the brand at a glance ----------
   const coloured = all.filter((p) => p.product.colors.length);
@@ -156,6 +186,7 @@ export async function shopBrand(opts: {
     better,
     withIt,
     alsoForYou: also,
+    stretch,
     owned,
     stats: {
       inPalette,

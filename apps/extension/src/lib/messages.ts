@@ -5,6 +5,7 @@ export type ToBackground =
   | { type: "product"; product: DetectedProduct | null }
   | { type: "open-panel" }
   | { type: "mute-site"; host: string }
+  | { type: "sync-now" }
   | { type: "picked"; src: string; title: string; url: string; alt?: string };
 
 /** Background or panel -> content script */

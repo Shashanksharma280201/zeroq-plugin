@@ -6,7 +6,8 @@ import { addItem } from "../../lib/db.ts";
 import { srcToBlob } from "../../lib/images.ts";
 import type { Pick, TabState } from "../../lib/messages.ts";
 import type { StyleProfile } from "../../lib/profile.ts";
-import { RatingPanel } from "../components/Rating.tsx";
+import { RatingPanel, cachedRating, snapshotOf } from "../components/Rating.tsx";
+import { itemKeyOf, logEvent } from "../../lib/events.ts";
 import { BrandShop } from "./BrandShop.tsx";
 import { canTryOn } from "../../lib/vto.ts";
 import { Icon, ItemImg, Page, ZQMark, money, useHud, useSettings } from "../components/kit.tsx";
@@ -70,7 +71,9 @@ function useActiveProduct(): { product: DetectedProduct | null; pick: Pick | nul
 
 const takeCache = new Map<string, string>();
 
-export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { wardrobe: WardrobeItem[]; profile: StyleProfile | null | undefined; onTryOn: (g: { src: string; category: ProductCheck["product"]["category"]; name: string }) => void; goWardrobe: () => void; goStyle: () => void }) {
+type TryOnGarment = { src: string; category: ProductCheck["product"]["category"]; name: string; hex?: string; itemKey?: string };
+
+export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { wardrobe: WardrobeItem[]; profile: StyleProfile | null | undefined; onTryOn: (g: TryOnGarment) => void; goWardrobe: () => void; goStyle: () => void }) {
   const { product, pick, tabId, loading, recheck, clearPick } = useActiveProduct();
   const [showPick, setShowPick] = useState(true);
   const [shopping, setShopping] = useState<{ origin: string; selected: DetectedProduct | null } | null>(null);
@@ -126,7 +129,8 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
             <figcaption className="caps">{[host, pick.alt].filter(Boolean).join(" / ")}</figcaption>
           </figure>
           <RatingPanel key={`rate-${pick.src}`} src={pick.src} title={pick.title} url={pick.url} hint={pick.alt} profile={profile} wardrobe={wardrobe} tabId={tabId}
-            goStyle={goStyle} onTryOn={(category) => onTryOn({ src: pick.src, category: category as any, name: pick.alt || "this item" })} />
+            ctx={{ itemKey: itemKeyOf(pick.url, pick.src), brand: host }}
+            goStyle={goStyle} onTryOn={(category) => onTryOn({ src: pick.src, category: category as any, name: pick.alt || "this item", hex: cachedRating(pick.src)?.item.hex, itemKey: itemKeyOf(pick.url, pick.src) })} />
           {originOf(pick.url)?.startsWith("http") && (
             <button className="find-better" onClick={() => setShopping({ origin: originOf(pick.url)!, selected: { name: pick.alt || "This item", url: pick.url, images: [pick.src], via: "open-graph" } })}>
               <span>Find better on {host}</span><span className="chev" aria-hidden>›</span>
@@ -171,9 +175,13 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
     ? { word: "It's yours", why: `In your wardrobe since ${new Date(owned.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}. Here is what it goes with.`, tone: "buy" }
     : verdictCopy(check, others.length);
 
+  const ctx = { itemKey: itemKeyOf(p.url), price: p.price, currency: p.currency, brand: p.brand };
   const bought = async () => {
     setAdding(true);
     try {
+      // Only this button records a purchase. Adding clothes by hand in Wardrobe does not.
+      const r = p.images[0] ? cachedRating(p.images[0]) : undefined;
+      await logEvent("bought", r ? snapshotOf(r, { ...ctx, url: p.url }) : { ...ctx, url: p.url, name: p.name, category: p.category, colors: p.colors, formality: p.formality }, { itemKey: ctx.itemKey, brand: p.brand });
       await addItem({
         name: p.name.replace(/^(men|women|mens|womens)\s+/i, ""),
         category: p.category,
@@ -234,7 +242,7 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
         {scored ? (
           <>
             <RatingPanel key={`rate-${p.images[0]}`} src={p.images[0]} title={p.name} url={p.url} hint={[p.brand, p.name].filter(Boolean).join(" ")} profile={profile} wardrobe={others} tabId={tabId}
-              goStyle={goStyle} />
+              ctx={ctx} goStyle={goStyle} />
             <div className="wcheck">
               <h2 className="section">{owned ? "It's in your wardrobe" : "With your wardrobe"}</h2>
               {others.length > 0 && <span className="meta">{check.pairs.length} {check.pairs.length === 1 ? "pairing" : "pairings"}, {check.duplicates.length} {check.duplicates.length === 1 ? "look-alike" : "look-alikes"}</span>}
@@ -268,7 +276,7 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
               )}
             </section>
             {!profile && (
-              <RatingPanel src={p.images[0] ?? ""} title={p.name} url={p.url} profile={profile} wardrobe={others} goStyle={goStyle} />
+              <RatingPanel src={p.images[0] ?? ""} title={p.name} url={p.url} profile={profile} wardrobe={others} goStyle={goStyle} ctx={ctx} />
             )}
             {check.duplicates.length > 0 && (
               <>
@@ -301,7 +309,7 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
 
       <div className="action-bar">
         {canTryOn(p.category) && p.images[0] && (
-          <button className="btn gray" onClick={() => onTryOn({ src: p.images[0], category: p.category, name: p.name })}>
+          <button className="btn gray" onClick={() => onTryOn({ src: p.images[0], category: p.category, name: p.name, hex: cachedRating(p.images[0])?.item.hex, itemKey: ctx.itemKey })}>
             <Icon.person /> Try on
           </button>
         )}

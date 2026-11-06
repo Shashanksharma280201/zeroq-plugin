@@ -1,7 +1,8 @@
 import {
-  CATEGORIES, SHAPE_ANCHORS, STYLE_ANCHORS, guessColors, guessKind, scoreItem, wardrobeFacts,
-  type Category, type ItemFacts, type PartKey, type ScoreProfile, type ScoreResult, type WardrobeItem,
+  CATEGORIES, SHAPE_ANCHORS, STYLE_ANCHORS, describeEvent, guessColors, guessKind, memoryBlock, scoreItem, wardrobeFacts,
+  type Category, type ItemFacts, type PartKey, type ScoreProfile, type ScoreResult, type TasteMemory, type WardrobeFacts, type WardrobeItem, type ZQEvent,
 } from "@zq/core";
+import { logEvent, outfitPhotoHashes } from "./events.ts";
 import { askAI, imagePart, parseJson, type Content } from "./ai.ts";
 import { getBlob, putBlob, deleteBlob } from "./db.ts";
 import { downscale } from "./images.ts";
@@ -44,6 +45,8 @@ export interface StyleProfile {
   avatar: Avatar;
   answers: Answers;
   createdAt: string;
+  /** last change, used to pick the newest profile across synced browsers */
+  updatedAt?: string;
   photoCount: number;
 }
 
@@ -68,6 +71,9 @@ export interface Rating extends ScoreResult {
   wardrobe: { pairsWith: string[]; note: string };
   occasions: string[];
   watchOut?: string;
+  /** what the formula was given, kept so the score can be re-run with your soft limits relaxed */
+  facts: ItemFacts;
+  wf: WardrobeFacts;
 }
 
 // ---------- storage ----------
@@ -77,11 +83,14 @@ export async function getProfile(): Promise<StyleProfile | null> {
   return (s.profile as StyleProfile) ?? null;
 }
 export async function saveProfile(p: StyleProfile): Promise<void> {
+  p = { ...p, updatedAt: new Date().toISOString() };
   await chrome.storage.local.set({ profile: p });
+  await logEvent("profile_built", { profile: p, photos: await outfitPhotoHashes() });
 }
 export async function clearProfile(): Promise<void> {
   await chrome.storage.local.remove("profile");
   for (let i = 0; i < 8; i++) await deleteBlob(`outfit:${i}`);
+  await logEvent("profile_built", { profile: null, photos: [] });
 }
 export function onProfile(fn: (p: StyleProfile | null) => void): () => void {
   const h = (c: Record<string, chrome.storage.StorageChange>, area: string) => {
@@ -224,6 +233,15 @@ const ITEM_SCHEMA = (useFrame: boolean) => `{"name": short name, "category": top
  "pairsWith": up to 3 ids from my wardrobe it goes with, "wardrobeNote": one sentence,
  "occasions": up to 3 short occasions, "watchOut": optional one sentence}`;
 
+/** Your history for the AI: the taste memory plus the past events most like this item. */
+function historyBlock(m: TasteMemory | null | undefined, p: StyleProfile, history?: ZQEvent[]): string {
+  const block = memoryBlock(m ?? null, p.answers.budget);
+  const lines = (history ?? []).map(describeEvent);
+  if (!block && !lines.length) return "";
+  return `\n${block}${lines.length ? `\nPAST ITEMS LIKE THIS ONE\n${lines.join("\n")}` : ""}
+Use this history when answering styleFit and likes: what I bought, kept and rated up says more about my taste than my stated profile. It must not change "never".\n`;
+}
+
 function wardrobeBlock(wardrobe: WardrobeItem[]): string {
   return `MY WARDROBE (id: item)\n${wardrobe.slice(0, 80).map((i) => `${i.id}: ${i.name} (${i.category}, ${i.colors.join("+") || "?"})`).join("\n") || "(empty)"}`;
 }
@@ -236,8 +254,12 @@ export async function rateItem(opts: {
   price?: number;
   profile: StyleProfile;
   wardrobe: WardrobeItem[];
+  memory?: TasteMemory | null;
+  /** past events most like this item */
+  history?: ZQEvent[];
 }): Promise<Rating> {
   const p = opts.profile;
+  const mem = historyBlock(opts.memory, p, opts.history);
   const text = await askAI(
     RATER,
     [
@@ -247,7 +269,7 @@ export async function rateItem(opts: {
         text: `The item is the main clothing piece in this image${opts.hint ? ` (${opts.hint})` : ""}. Page: ${opts.pageTitle ?? ""} ${opts.pageUrl ?? ""}
 
 ${profileBlock(p)}
-
+${mem}
 ${wardrobeBlock(opts.wardrobe)}
 
 Return JSON exactly in this shape:
@@ -268,8 +290,10 @@ export async function rateItems(opts: {
   profile: StyleProfile;
   wardrobe: WardrobeItem[];
   extra?: WardrobeItem[];
+  memory?: TasteMemory | null;
 }): Promise<Array<Rating | null>> {
   const p = opts.profile;
+  const mem = historyBlock(opts.memory, p);
   const content: Content[] = [];
   for (const [i, it] of opts.items.entries()) {
     content.push({ type: "text", text: `ITEM ${i}: ${it.hint}` });
@@ -278,7 +302,7 @@ export async function rateItems(opts: {
   content.push({
     type: "text",
     text: `${profileBlock(p)}
-
+${mem}
 ${wardrobeBlock([...opts.wardrobe, ...(opts.extra ?? [])])}
 
 For each ITEM above, report on the main clothing piece in its photo. Return JSON: {"items": [{"i": item number, ...fields}]} where fields are exactly:
@@ -336,5 +360,7 @@ export function toRating(r: any, p: StyleProfile, wardrobe: WardrobeItem[], pric
     wardrobe: { pairsWith: (Array.isArray(r.pairsWith) ? r.pairsWith : []).map(String).filter((id: string) => ids.has(id)).slice(0, 3), note: String(r.wardrobeNote ?? "") },
     occasions: (Array.isArray(r.occasions) ? r.occasions : []).map(String).slice(0, 3),
     watchOut: r.watchOut ? String(r.watchOut) : undefined,
+    facts,
+    wf,
   };
 }

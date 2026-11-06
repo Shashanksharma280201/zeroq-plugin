@@ -43,3 +43,9 @@ export async function blobToBase64(blob: Blob): Promise<string> {
 export async function blobToDataUrl(blob: Blob): Promise<string> {
   return `data:${blob.type || "image/jpeg"};base64,${await blobToBase64(blob)}`;
 }
+
+/** SHA-256 of a blob's bytes, as hex. Same photo, same hash, on every device. */
+export async function hashBlob(blob: Blob): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}

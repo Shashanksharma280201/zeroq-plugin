@@ -654,3 +654,49 @@ h2.section { font: 400 22px/1.15 var(--serif); letter-spacing: -0.01em; margin: 
 /* Buttons stay pills: the one soft shape against square photos */
 .btn.filled { background: var(--primary); }
 .btn.gray, .btn.tinted { background: transparent; box-shadow: inset 0 0 0 1.5px var(--text); }
+
+/* ---------- memory: feedback, stretch, what Zero Q has learned ---------- */
+.feedback { margin: 20px 0 4px; padding-top: 16px; box-shadow: 0 -1px 0 var(--rule); }
+.feedback .fb-q { font: 400 19px/1.25 var(--serif); margin-bottom: 10px; }
+.feedback .fb-q.small { font: 500 13px/1.3 var(--font); color: var(--muted); margin: 14px 0 8px; }
+.feedback .fb-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.feedback.done { font-size: 14px; color: var(--muted); padding-top: 14px; }
+
+.stretch-note { margin: 0 0 22px; padding: 16px 0 10px; box-shadow: 0 1px 0 var(--rule), 0 -1px 0 var(--rule); }
+.stretch-note .caps { color: var(--accent); margin-bottom: 6px; }
+.stretch-note .stretch-score { font: 400 22px/1.2 var(--serif); margin: 0 0 6px; }
+.stretch-note .stretch-score b { font-weight: 400; font-style: italic; }
+.stretch-note .stretch-why { margin: 0 0 6px; font-size: 14px; line-height: 1.45; color: var(--muted); }
+.stretch-note .btn { padding: 0; height: 32px; }
+
+.stretch-list { display: grid; gap: 0; margin-bottom: 24px; }
+.stretch-card { display: grid; gap: 2px; padding: 12px 0; box-shadow: 0 1px 0 var(--rule); }
+.stretch-card .btn { justify-self: start; padding: 0; height: 30px; }
+.stretch-open { all: unset; cursor: pointer; display: flex; gap: 12px; align-items: flex-start; }
+.stretch-open img { width: 72px; height: 96px; object-fit: cover; border-radius: 10px; background: var(--surface); flex: none; }
+.stretch-open .name { font-weight: 500; font-size: 15px; line-height: 1.3; }
+.stretch-open .sub { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+.stretch-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 10px; }
+
+.memory { margin-bottom: 8px; }
+.mem-line { font-size: 15px; line-height: 1.5; margin: 0 0 16px; }
+.mem-line b { font-weight: 500; }
+.mem-colours { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 12px 10px; margin: 0 0 18px; }
+.mem-colours div { display: grid; gap: 2px; }
+.mem-colours i { display: block; height: 34px; border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
+.mem-colours span { font-size: 13px; font-weight: 500; }
+.mem-colours small { font-size: 11.5px; color: var(--muted); }
+.mem-h3 { margin: 6px 0 10px; }
+.notes { list-style: none; margin: 0 0 8px; padding: 0; }
+.notes li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; box-shadow: 0 1px 0 var(--rule); font-size: 15px; line-height: 1.45; }
+.notes li span { flex: 1; }
+.icon-x { all: unset; cursor: pointer; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); font-size: 18px; flex: none; margin-top: -3px; }
+.icon-x:hover { background: var(--surface); color: var(--text); }
+.icon-x:focus-visible { outline: 2px solid var(--accent); }
+
+.setup-steps { margin: -12px 4px 24px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.setup-steps summary { cursor: pointer; color: var(--text); font-weight: 500; margin-bottom: 6px; }
+.setup-steps ol { padding-left: 18px; margin: 6px 0; }
+.setup-steps li { margin-bottom: 6px; }
+.setup-steps b { color: var(--text); font-weight: 500; }
+.setup-steps code.copy { display: block; margin-top: 4px; padding: 8px 10px; border-radius: 8px; background: var(--surface); color: var(--text); font: 12px/1.4 ui-monospace, Menlo, monospace; word-break: break-all; cursor: copy; }

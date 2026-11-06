@@ -24,6 +24,14 @@ export interface Settings {
   mutedSites: string[];
   /** Set once the person has added their try-on photo */
   hasModelPhoto: boolean;
+  /** Show up to 2 "outside your usual" picks when your history backs them */
+  stretchPicks: boolean;
+  /** Google Drive sync of history, wardrobe and photos */
+  driveSync: boolean;
+  /** OAuth client id (Web application) from Google Cloud */
+  driveClientId: string;
+  /** Encrypts everything before it reaches Drive. Never synced. */
+  drivePassphrase: string;
 }
 
 export const DEFAULTS: Settings = {
@@ -38,7 +46,14 @@ export const DEFAULTS: Settings = {
   fashnKey: "",
   mutedSites: [],
   hasModelPhoto: false,
+  stretchPicks: true,
+  driveSync: false,
+  driveClientId: "",
+  drivePassphrase: "",
 };
+
+/** Changes worth remembering. Keys and secrets are never logged. */
+const LOGGED: Array<keyof Settings> = ["trigger", "aiProvider", "tryOnProvider", "stretchPicks", "driveSync"];
 
 export async function getSettings(): Promise<Settings> {
   const s = await chrome.storage.local.get("settings");
@@ -50,8 +65,14 @@ export async function getSettings(): Promise<Settings> {
 }
 
 export async function setSettings(patch: Partial<Settings>): Promise<Settings> {
-  const next = { ...(await getSettings()), ...patch };
+  const prev = await getSettings();
+  const next = { ...prev, ...patch };
   await chrome.storage.local.set({ settings: next });
+  const changed = LOGGED.filter((k) => k in patch && prev[k] !== next[k]);
+  if (changed.length) {
+    const { logEvent } = await import("./events.ts");
+    for (const k of changed) await logEvent("setting_changed", { key: k, from: prev[k], to: next[k] });
+  }
   return next;
 }
 

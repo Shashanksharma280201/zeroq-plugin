@@ -27,7 +27,7 @@ export function App({ surface }: { surface: Surface }) {
   const [tab, setTab] = useState<Tab>(initial);
   const [garment, setGarment] = useState<Garment | null>(null);
   const go = (t: Tab) => t !== tab && transition(() => setTab(t));
-  const tryItem = (i: WardrobeItem) => setGarment({ name: i.name, category: i.category, blobKey: i.image });
+  const tryItem = (i: WardrobeItem) => setGarment({ name: i.name, category: i.category, blobKey: i.image, itemKey: `wardrobe:${i.id}` });
 
   return (
     <HudProvider>

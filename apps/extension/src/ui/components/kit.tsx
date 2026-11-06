@@ -1,3 +1,5 @@
+import { getMemory, onEvents } from "../../lib/events.ts";
+import type { TasteMemory } from "@zq/core";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import type { WardrobeItem } from "@zq/core";
@@ -42,6 +44,22 @@ export function useWardrobe(): WardrobeItem[] | null {
     };
   }, []);
   return items;
+}
+
+/** The taste memory; null until there is any history. Reloads when it is rebuilt. */
+export function useMemory(): TasteMemory | null {
+  const [m, set] = useState<TasteMemory | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = () => getMemory().then((x) => live && set(x));
+    load();
+    const off = onEvents((e) => e.kind === "memory" && load());
+    return () => {
+      live = false;
+      off();
+    };
+  }, []);
+  return m;
 }
 
 /** undefined while loading, null when there is no profile yet */
