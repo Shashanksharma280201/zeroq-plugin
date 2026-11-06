@@ -218,3 +218,60 @@ export async function outfitPhotoHashes(): Promise<Array<{ key: string; hash: st
   }
   return out;
 }
+
+// ---------- history: everything you have rated ----------
+
+export interface RatedEntry {
+  itemKey: string;
+  name: string;
+  score: number;
+  verdict?: string;
+  url?: string;
+  src?: string;
+  thumbKey?: string;
+  brand?: string;
+  price?: number;
+  currency?: string;
+  hex?: string;
+  ts: string;
+  /** how many times it was rated */
+  times: number;
+  bought: boolean;
+  feedback?: "low" | "right" | "high";
+}
+
+/** One entry per item, newest rating first, with whether you bought it and how you answered its score. */
+export async function listRated(): Promise<RatedEntry[]> {
+  const events = await listEvents();
+  const map = new Map<string, RatedEntry>();
+  const bought = new Set<string>();
+  const fb = new Map<string, RatedEntry["feedback"]>();
+  for (const e of events) {
+    const p = e.payload ?? {};
+    const key = p.itemKey ?? e.refs?.itemKey;
+    if (!key) continue;
+    if (e.type === "bought") bought.add(key);
+    if (e.type === "rating_feedback") fb.set(key, p.verdict);
+    if (e.type !== "item_rated") continue;
+    const prev = map.get(key);
+    map.set(key, {
+      itemKey: key,
+      name: p.name ?? "Item",
+      score: Number(p.score) || 0,
+      verdict: p.verdict,
+      url: p.url,
+      src: p.src,
+      thumbKey: p.thumbKey ?? prev?.thumbKey,
+      brand: p.brand,
+      price: p.price,
+      currency: p.currency,
+      hex: p.colors?.[0]?.hex,
+      ts: e.ts,
+      times: (prev?.times ?? 0) + 1,
+      bought: false,
+    });
+  }
+  return [...map.values()]
+    .map((r) => ({ ...r, bought: bought.has(r.itemKey), feedback: fb.get(r.itemKey) }))
+    .sort((a, b) => b.ts.localeCompare(a.ts));
+}

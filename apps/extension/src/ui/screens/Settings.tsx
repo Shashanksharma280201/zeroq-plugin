@@ -7,6 +7,7 @@ import { exportAll, importAll } from "../../lib/db.ts";
 import { askAI } from "../../lib/ai.ts";
 import { DEFAULTS, setSettings, type Settings as SettingsT, type AIProvider, type TriggerMode, type TryOnProvider } from "../../lib/settings.ts";
 import { Page, Segmented, Switch, useHud, useSettings } from "../components/kit.tsx";
+import { DataHomeSettings } from "../components/DataHome.tsx";
 
 const TRIGGER_HELP: Record<TriggerMode, string> = {
   auto: "A small button appears on product pages with what Zero Q found. Click it to open the panel.",
@@ -117,6 +118,8 @@ export function Settings({ wardrobe, surface }: { wardrobe: WardrobeItem[]; surf
         </div>
       </div>
       <p className="group-footer">Up to 2 pieces per list that break your budget, occasion or colours when your history says you would like them anyway. Never-wear items are never shown.</p>
+
+      <DataHomeSettings st={st} />
 
       <DriveSync st={st} />
 

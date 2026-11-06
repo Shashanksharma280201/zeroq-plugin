@@ -72,6 +72,10 @@ stretch = score with relaxed limits + min(12, 4 × evidence), capped at 95
 
 Never-wear and near twins never stretch. A kind you dismiss 3+ times more than you open needs twice the evidence. A pick shows when the stretch score is 75 or more and above the normal score; at most 2 per list.
 
+## Data folder
+
+On Chromium browsers you choose a folder on first open (or in Settings). `lib/folder.ts` writes readable files there a few seconds after any new event while Zero Q is open, and on every open it first reads `history/*.jsonl` back in, so another browser writing to the same folder (through a cloud-synced folder) is merged: new events are inserted by id and replayed (`lib/replay.ts`) with photos read from `photos/`. Firefox, which cannot pick folders, saves `Downloads/Zero Q/zeroq-backup.json` daily with the `downloads` permission. Safari offers Back up everything.
+
 ## Sync
 
 Files in Drive's app-data folder:

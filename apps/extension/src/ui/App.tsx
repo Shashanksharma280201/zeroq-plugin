@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { WardrobeItem } from "@zq/core";
-import { HudProvider, Icon, ZQMark, transition, useProfile, useWardrobe } from "./components/kit.tsx";
+import { HudProvider, Icon, ZQMark, transition, useProfile, useSettings, useWardrobe } from "./components/kit.tsx";
+import { DataHomeSheet, FolderBanner, useFolderAutosave } from "./components/DataHome.tsx";
 import { Style } from "./screens/Style.tsx";
 import { Settings } from "./screens/Settings.tsx";
 import { ThisItem } from "./screens/ThisItem.tsx";
@@ -22,6 +23,8 @@ const TABS: Array<{ id: Tab; label: string; icon: () => JSX.Element; surfaces: S
 export function App({ surface }: { surface: Surface }) {
   const wardrobe = useWardrobe();
   const profile = useProfile();
+  const settings = useSettings();
+  useFolderAutosave(settings);
   const hash = location.hash.slice(1) as Tab;
   const initial: Tab = surface === "sidepanel" ? "item" : ["style", "settings", "today", "wardrobe"].includes(hash) ? hash : "style";
   const [tab, setTab] = useState<Tab>(initial);
@@ -42,6 +45,7 @@ export function App({ surface }: { surface: Surface }) {
           ))}
         </nav>
         <main className="view">
+          <FolderBanner />
           {wardrobe == null ? null : tab === "item" ? (
             <ThisItem wardrobe={wardrobe} profile={profile} onTryOn={(g) => setGarment(g)} goWardrobe={() => go("wardrobe")} goStyle={() => go("style")} />
           ) : tab === "style" ? (
@@ -56,6 +60,7 @@ export function App({ surface }: { surface: Surface }) {
         </main>
       </div>
       <TryOnSheet garment={garment} onClose={() => setGarment(null)} />
+      <DataHomeSheet />
     </HudProvider>
   );
 }

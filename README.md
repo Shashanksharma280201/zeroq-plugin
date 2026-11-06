@@ -18,6 +18,8 @@ On any product page it tells you whether the item goes with what you own, warns 
 - **Memory.** Every rating, pick, brand scan, try-on, purchase and score answer is saved in a local log, forever unless you clear it. A taste memory built from it (what you actually spend, the colours and brands you keep choosing, how you rate Zero Q's scores) goes into every AI request, and once a week the AI writes short notes on your taste that you can delete. See [MEMORY.md](MEMORY.md).
 - **Outside your usual.** Budget, occasion and colour limits are soft. When your history says you would like something anyway, Zero Q shows it, at most 2 per list, with the reason ("over your usual budget, but you have bought 2 pieces near this price") and a "Not for me" button. Never-wear stays hard. Turn it off in Settings.
 - **Is this score right?** Tap too low, about right or too high under any score, and say why. It teaches the memory.
+- **Rated history.** Every item you rate, with its photo, score, site and date, on the You tab. Filter by 75 and up, under 55, or bought.
+- **Your data folder.** The first time it opens, Zero Q asks where to keep your data and shows where it sits today. On Chrome, Edge, Brave, Opera and Arc you pick a folder (suggested: `Documents/Zero Q`) and Zero Q keeps readable files there: profile, wardrobe, rated items with photos, full history. Put it inside Google Drive for desktop, iCloud Drive, Dropbox or OneDrive and your browsers share it with no sign-in. Firefox saves a daily backup to `Downloads/Zero Q`; Safari offers a backup file.
 - **Google Drive sync (optional).** History, wardrobe, profile and photos go to a hidden folder in your own Drive, encrypted with a passphrase, so every browser you use has the same Zero Q.
 
 ## How it shows up
@@ -69,6 +71,16 @@ Model IDs are editable in Settings because providers rename them. See [TESTING.m
 ## Data
 
 Everything is stored in IndexedDB in your browser profile: wardrobe, photos, profile, the event log and the taste memory. Nothing leaves the browser except what you send to your AI and try-on providers, and, if you turn it on, encrypted files in your own Google Drive.
+
+**Where it is on disk.** Settings, Where your data lives shows the exact path for your browser and OS, for example:
+
+| OS | Chrome's database | Suggested Zero Q folder |
+| --- | --- | --- |
+| Windows | `%LOCALAPPDATA%\Google\Chrome\User Data\Default\IndexedDB\chrome-extension_<id>_0.indexeddb.leveldb` | `C:\Users\<you>\Documents\Zero Q` |
+| macOS | `~/Library/Application Support/Google/Chrome/Default/IndexedDB/…` | `/Users/<you>/Documents/Zero Q` |
+| Linux | `~/.config/google-chrome/Default/IndexedDB/…` | `/home/<you>/Documents/Zero Q` |
+
+The browser database is not readable by hand; the folder is. Its layout: `profile.json`, `wardrobe.json`, `rated.json`, `memory.json`, `settings.json` (no keys), `history/YYYY-MM.jsonl` (every event), `photos/wardrobe`, `photos/outfits`, `photos/rated`, `photos/me.jpg`. Chrome may ask again for folder access after a restart; Zero Q shows an Allow button when it does.
 
 **Drive sync** needs a free OAuth client ID from Google Cloud (Settings shows the steps and the exact redirect URL to add). Use the same client ID and passphrase in each browser, and add each browser's redirect URL to the client. Safari cannot sign in to Google from an extension, so sync is off there; use **Back up everything** and **Restore** to move data in or out.
 

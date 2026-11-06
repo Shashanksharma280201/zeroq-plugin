@@ -27,7 +27,8 @@ function manifestFor(target) {
   if (target === "firefox") {
     delete m.side_panel;
     delete m.minimum_chrome_version;
-    m.permissions = drop(m.permissions, "sidePanel");
+    // Firefox cannot pick folders; it saves a daily backup to Downloads/Zero Q instead.
+    m.permissions = [...drop(m.permissions, "sidePanel"), "downloads"];
     m.background = { scripts: ["background.js"] };
     m.sidebar_action = { default_panel: "sidepanel.html", default_title: "Zero Q", default_icon: m.icons, open_at_install: false };
     const { _execute_action, ...rest } = m.commands;

@@ -700,3 +700,25 @@ h2.section { font: 400 22px/1.15 var(--serif); letter-spacing: -0.01em; margin: 
 .setup-steps li { margin-bottom: 6px; }
 .setup-steps b { color: var(--text); font-weight: 500; }
 .setup-steps code.copy { display: block; margin-top: 4px; padding: 8px 10px; border-radius: 8px; background: var(--surface); color: var(--text); font: 12px/1.4 ui-monospace, Menlo, monospace; word-break: break-all; cursor: copy; }
+
+/* ---------- rated history ---------- */
+.rated-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.rated-head .meta { margin-right: 4px; }
+.rated-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 18px 12px; margin-bottom: 20px; }
+.rated-card { flex: none; }
+.rated-card .bought-tag { position: absolute; right: 8px; top: 8px; height: 22px; padding: 0 8px; border-radius: 11px; display: grid; place-items: center; font-size: 11.5px; font-weight: 600; background: var(--primary); color: var(--on-primary); }
+
+/* ---------- where your data lives ---------- */
+.datahome { display: grid; gap: 14px; padding-bottom: 8px; }
+.datahome .dh-title { font: 400 28px/1.15 var(--serif); margin: 0; }
+.datahome .dh-lead { margin: -6px 0 0; color: var(--muted); font-size: 15px; line-height: 1.45; }
+.datahome p { margin: 0; font-size: 14px; line-height: 1.45; }
+.datahome .hint { font-size: 13px; }
+.datahome code, .meta.path { font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+.datahome code { display: block; padding: 9px 11px; border-radius: 10px; background: var(--surface); color: var(--text); }
+.dh-now { display: grid; gap: 8px; padding: 14px 0; box-shadow: 0 1px 0 var(--rule), 0 -1px 0 var(--rule); }
+.dh-now .caps { color: var(--muted); }
+.dh-option { display: grid; gap: 8px; }
+.folder-banner { display: flex; align-items: center; gap: 12px; margin: 12px 16px 0; padding: 10px 12px 10px 14px; border-radius: 14px; background: var(--accent-soft); font-size: 14px; line-height: 1.35; }
+.folder-banner span { flex: 1; }
+.folder-banner b { font-weight: 600; }

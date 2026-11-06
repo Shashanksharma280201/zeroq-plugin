@@ -5,6 +5,7 @@ import { backfill, itemKeyOf, logEvent, rebuildMemory } from "./lib/events.ts";
 import { notesDue, writeTasteNotes } from "./lib/notes.ts";
 import { aiReady, getSettings } from "./lib/settings.ts";
 import { syncNow } from "./lib/sync.ts";
+import { saveToDownloads } from "./lib/folder.ts";
 import { summarise, type Pick, type TabState, type ToBackground } from "./lib/messages.ts";
 import { setSettings } from "./lib/settings.ts";
 
@@ -139,7 +140,9 @@ function setupAlarms() {
 }
 
 chrome.alarms?.onAlarm.addListener(async (a) => {
+  // The data folder is written from Zero Q's own pages, which hold the folder permission.
   if (a.name === "zq-sync") syncNow().catch(() => {});
+  if (a.name === "zq-memory" && (await getSettings()).dataHome === "downloads") saveToDownloads().catch(() => {});
   if (a.name === "zq-memory") {
     await rebuildMemory().catch(() => {});
     if (aiReady(await getSettings()) && (await notesDue().catch(() => false))) writeTasteNotes().catch(() => {});

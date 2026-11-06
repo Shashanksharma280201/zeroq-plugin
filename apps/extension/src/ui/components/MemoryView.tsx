@@ -38,7 +38,7 @@ export function MemoryView({ p }: { p: StyleProfile }) {
       <h2 className="section" id="mem-h">What Zero Q has learned</h2>
       {!learned ? (
         <p className="hint" style={{ margin: "0 4px 24px" }}>
-          Zero Q learns from what you buy, try on and how you answer its scores. Tap "I bought this" on a product page, or answer "Is this score right?" under a rating, and this fills in.
+          Ratings alone do not teach Zero Q much. It learns from what you buy, try on and how you answer its scores: tap "I bought this" on a product page, or answer "Is this score right?" under a rating, and this fills in.
         </p>
       ) : (
         <>

@@ -1,5 +1,6 @@
-import type { WardrobeItem, ZQEvent } from "@zq/core";
-import { deleteBlob, deleteItemRaw, applyWorn, getBlob, getMeta, open, putBlob, putItemRaw, setMeta } from "./db.ts";
+import type { ZQEvent } from "@zq/core";
+import { getBlob, getMeta, open, setMeta } from "./db.ts";
+import { blobRefs, replay, type BlobRef } from "./replay.ts";
 import { deviceId, getEvents, putEvents, rebuildMemory } from "./events.ts";
 import { hashBlob } from "./images.ts";
 import { getSettings, type Settings } from "./settings.ts";
@@ -275,7 +276,7 @@ async function run(): Promise<SyncState> {
     for (const f of incoming) {
       const list = JSON.parse(new TextDecoder().decode(await decrypt(key, await d.download(f.id)))) as ZQEvent[];
       const fresh = await putEvents(list);
-      for (const e of fresh) await apply(e, d, key, blobFile);
+      for (const e of fresh) await replay(e, (ref) => fetchBlob(ref, d, key, blobFile));
       pulled += fresh.length;
       seen.add(f.name);
       await setMeta("seenFiles", [...seen]);
@@ -288,56 +289,11 @@ async function run(): Promise<SyncState> {
   }
 }
 
-/** Photos an event depends on. */
-export function blobRefs(e: ZQEvent): Array<{ key: string; hash: string }> {
-  const p = e.payload ?? {};
-  if ((e.type === "wardrobe_added" || e.type === "wardrobe_updated") && p.item?.image && p.blobHash) return [{ key: p.item.image, hash: p.blobHash }];
-  if (e.type === "profile_built" && Array.isArray(p.photos)) return p.photos.filter((x: any) => x?.key && x?.hash);
-  if (e.type === "photo_set" && p.key && p.hash) return [{ key: p.key, hash: p.hash }];
-  return [];
-}
-
-async function fetchBlob(ref: { key: string; hash: string }, d: Drive, key: CryptoKey, files: Map<string, DFile>): Promise<void> {
-  if ((await getMeta<string>(`hash:${ref.key}`)) === ref.hash && (await getBlob(ref.key))) return;
+async function fetchBlob(ref: BlobRef, d: Drive, key: CryptoKey, files: Map<string, DFile>): Promise<Blob | undefined> {
   const f = files.get(ref.hash);
-  if (!f) return;
+  if (!f) return undefined;
   const bytes = await decrypt(key, await d.download(f.id));
-  await putBlob(ref.key, new Blob([bytes], { type: f.appProperties?.type ?? "image/jpeg" }));
-  await setMeta(`hash:${ref.key}`, ref.hash);
-}
-
-/** Replays one event from another browser onto this one. */
-async function apply(e: ZQEvent, d: Drive, key: CryptoKey, files: Map<string, DFile>): Promise<void> {
-  const p = e.payload ?? {};
-  for (const ref of blobRefs(e)) await fetchBlob(ref, d, key, files).catch(() => {});
-  switch (e.type) {
-    case "wardrobe_added":
-    case "wardrobe_updated":
-      if (p.item?.id) await putItemRaw(p.item as WardrobeItem);
-      break;
-    case "wardrobe_removed":
-      if (p.id) {
-        await deleteItemRaw(p.id);
-        await deleteBlob(`item:${p.id}`).catch(() => {});
-      }
-      break;
-    case "outfit_worn":
-      if (Array.isArray(p.itemIds)) await applyWorn(p.itemIds, e.ts);
-      break;
-    case "profile_built": {
-      const local = (await chrome.storage.local.get("profile")).profile;
-      const localAt = local?.updatedAt ?? local?.createdAt ?? "";
-      if (e.ts < localAt) break; // yours is newer
-      if (p.profile) await chrome.storage.local.set({ profile: p.profile });
-      else await chrome.storage.local.remove("profile");
-      break;
-    }
-    case "photo_set": {
-      const st = (await chrome.storage.local.get("settings")).settings ?? {};
-      await chrome.storage.local.set({ settings: { ...st, hasModelPhoto: true } });
-      break;
-    }
-  }
+  return new Blob([bytes], { type: f.appProperties?.type ?? "image/jpeg" });
 }
 
 async function outboxIds(): Promise<string[]> {

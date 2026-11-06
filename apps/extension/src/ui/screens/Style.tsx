@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MemoryView } from "../components/MemoryView.tsx";
+import { RatedHistory } from "../components/RatedHistory.tsx";
 import {
   buildProfile, clearProfile, getOutfitPhotos, saveOutfitPhotos, saveProfile,
   type Answers, type Avatar as AvatarT, type StyleProfile,
@@ -215,6 +216,7 @@ function Reveal({ p, onDone }: { p: StyleProfile; onDone: () => void }) {
       <h1 className="onb-title">{p.styleName}</h1>
       <p className="onb-sub">{p.summary}</p>
       <PaletteBand p={p} />
+      <RatedHistory />
       <ProfileDetails p={p} />
       <div className="onb-cta"><button className="btn filled block" onClick={onDone}>Start shopping</button></div>
       <p className="hint" style={{ margin: "0 0 20px" }}>On any site, right-click a photo and choose Rate this for me, or press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>X</kbd> and click it.</p>
@@ -281,6 +283,7 @@ function ProfileView({ p, onRedo }: { p: StyleProfile; onRedo: () => void }) {
         </div>
       </div>
       <PaletteBand p={p} />
+      <RatedHistory />
       <ProfileDetails p={p} />
       <MemoryView p={p} />
       <div className="group">

@@ -32,6 +32,8 @@ export interface Settings {
   driveClientId: string;
   /** Encrypts everything before it reaches Drive. Never synced. */
   drivePassphrase: string;
+  /** Where your data is kept besides the browser: asked once on first open */
+  dataHome: "unset" | "browser" | "folder" | "downloads";
 }
 
 export const DEFAULTS: Settings = {
@@ -50,10 +52,11 @@ export const DEFAULTS: Settings = {
   driveSync: false,
   driveClientId: "",
   drivePassphrase: "",
+  dataHome: "unset",
 };
 
 /** Changes worth remembering. Keys and secrets are never logged. */
-const LOGGED: Array<keyof Settings> = ["trigger", "aiProvider", "tryOnProvider", "stretchPicks", "driveSync"];
+const LOGGED: Array<keyof Settings> = ["trigger", "aiProvider", "tryOnProvider", "stretchPicks", "driveSync", "dataHome"];
 
 export async function getSettings(): Promise<Settings> {
   const s = await chrome.storage.local.get("settings");

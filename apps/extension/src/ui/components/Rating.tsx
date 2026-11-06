@@ -2,7 +2,8 @@ import { aiReady, PROVIDER_NAME } from "../../lib/settings.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { deltaE, isStretchPick, retrieveEvents, stretchFor, type FeedbackReason, type FeedbackVerdict, type ItemSnapshot, type WardrobeItem } from "@zq/core";
 import { getMemory, listEvents, logEvent } from "../../lib/events.ts";
-import { srcToBlob } from "../../lib/images.ts";
+import { downscale, hashBlob, srcToBlob } from "../../lib/images.ts";
+import { putBlob } from "../../lib/db.ts";
 import type { ToContent } from "../../lib/messages.ts";
 import { rateItem, scoreProfile, type Rating, type StyleProfile } from "../../lib/profile.ts";
 import { Avatar } from "./Avatar.tsx";
@@ -67,9 +68,14 @@ export function RatingPanel({
       const history = retrieveEvents(events, { itemKey: ctx.itemKey, brand: ctx.brand, price: ctx.price }, 8);
       const r = await rateItem({ image, pageTitle: title, pageUrl: url, hint, profile, wardrobe, price: ctx.price, memory, history });
       cache.set(src, r);
+      // A small copy of the photo, so history still shows it after the shop's image link expires.
+      const thumbKey = `thumb:${ctx.itemKey}`;
+      const thumbHash = await downscale(image, 320).then(async (t) => (await putBlob(thumbKey, t), hashBlob(t))).catch(() => undefined);
       logEvent("item_rated", {
         ...snapshotOf(r, { ...ctx, url }),
         src,
+        thumbKey: thumbHash ? thumbKey : undefined,
+        thumbHash,
         score: r.score,
         verdict: r.verdict,
         parts: r.parts.map((p) => ({ key: p.key, value: p.value })),
