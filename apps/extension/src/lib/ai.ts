@@ -32,10 +32,31 @@ export interface AskOptions {
 /** Models that rejected a temperature setting this session; we stop sending it to them. */
 const noTemperature = new Set<string>();
 
+/** The provider stopped because the answer hit the length limit: what came back is unfinished. */
+class TruncatedError extends Error {
+  constructor() {
+    super("The answer was cut off.");
+  }
+}
+
 export async function askAI(system: string, content: Content[], opts: AskOptions = {}): Promise<string> {
   const s = await getSettings();
   const model = s.aiProvider === "claude" ? s.anthropicModel : s.geminiModel;
-  const call = (o: AskOptions) => (s.aiProvider === "claude" ? askClaude(s, system, content, o) : askGemini(s, system, content, o));
+  const once = (o: AskOptions) => (s.aiProvider === "claude" ? askClaude(s, system, content, o) : askGemini(s, system, content, o));
+  // A cut-off answer is half a JSON object. Ask once more with far more room before giving up.
+  const call = async (o: AskOptions) => {
+    try {
+      return await once(o);
+    } catch (e) {
+      if (!(e instanceof TruncatedError)) throw e;
+      try {
+        return await once({ ...o, maxTokens: Math.round((o.maxTokens ?? 800) * 3) });
+      } catch (e2) {
+        if (e2 instanceof TruncatedError) throw new Error("The AI's answer was too long and got cut off twice. Try again, or use fewer photos.");
+        throw e2;
+      }
+    }
+  };
   if (opts.temperature == null || noTemperature.has(model)) return call({ ...opts, temperature: undefined });
   try {
     return await call(opts);
@@ -82,6 +103,7 @@ async function askClaude(s: Settings, system: string, content: Content[], opts: 
     throw new Error(`Claude request failed (${res.status}). ${body.slice(0, 200)}`);
   }
   const data = await res.json();
+  if (data.stop_reason === "max_tokens") throw new TruncatedError();
   return (data.content ?? []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("");
 }
 
@@ -131,8 +153,8 @@ async function askGemini(s: Settings, system: string, content: Content[], opts: 
     },
   });
   const text = (cand.content?.parts ?? []).filter((p: any) => p.text && !p.thought).map((p: any) => p.text).join("");
+  if (cand.finishReason === "MAX_TOKENS") throw new TruncatedError();
   if (!text) {
-    if (cand.finishReason === "MAX_TOKENS") throw new Error("Gemini ran out of room before answering. Try again.");
     if (cand.finishReason === "SAFETY") throw new Error("Gemini declined to answer for safety reasons. Try a different photo.");
     throw new Error("Gemini returned an empty answer. Try again.");
   }
@@ -143,7 +165,12 @@ export function parseJson<T>(text: string): T {
   const start = text.search(/[[{]/);
   const end = Math.max(text.lastIndexOf("}"), text.lastIndexOf("]"));
   if (start < 0 || end < start) throw new Error("The stylist sent back something unreadable. Try again.");
-  return JSON.parse(text.slice(start, end + 1));
+  try {
+    return JSON.parse(text.slice(start, end + 1));
+  } catch {
+    // Browsers word this differently (Firefox: "end of data after property value"); say what it means.
+    throw new Error("The AI's answer came back incomplete. Try again.");
+  }
 }
 
 export async function imagePart(blob: Blob, max = 768): Promise<Content> {
@@ -178,7 +205,7 @@ export async function tagPhoto(photo: Blob): Promise<Tags> {
 {"name": short shopper style name like "Navy oxford shirt", "category": one of ${CATEGORIES.join("|")}, "kind": e.g. shirt, t-shirt, jeans, chinos, kurta, sneakers, "colors": up to 2 of black|white|grey|navy|blue|denim|beige|cream|brown|olive|green|maroon|red|pink|purple|yellow|orange, "pattern": solid|striped|checked|printed|embroidered|other, "formality": 1 lounge to 5 formal}`,
       },
     ],
-    { maxTokens: 300, json: true },
+    { maxTokens: 600, json: true },
   );
   const t = parseJson<Tags>(text);
   if (!CATEGORIES.includes(t.category)) t.category = "other";
@@ -203,7 +230,7 @@ ${wardrobe.slice(0, 120).map(compact).join("\n") || "(empty)"}
 
 In at most 3 short sentences: should I buy it, what exactly would I wear it with from my wardrobe (use item names), and is anything about it redundant. Start with a clear verdict word: Buy, Maybe, or Skip.`,
   });
-  return (await askAI(STYLIST, content, { maxTokens: 250 })).trim();
+  return (await askAI(STYLIST, content, { maxTokens: 500 })).trim();
 }
 
 // ---------- outfits for an occasion ----------
@@ -222,7 +249,7 @@ ${wardrobe.map(compact).join("\n")}
 Return 3 different outfits as JSON array: [{"title": 2 to 5 words, "itemIds": [ids from the list, a top and bottom or a one-piece, plus shoes or a layer if they help], "why": one sentence}]. Only use ids from the list.`,
       },
     ],
-    { maxTokens: 700, json: true },
+    { maxTokens: 1400, json: true },
   );
   const ids = new Set(wardrobe.map((i) => i.id));
   return parseJson<Outfit[]>(text)
@@ -240,6 +267,6 @@ export async function wardrobeGaps(wardrobe: WardrobeItem[]): Promise<string> {
         type: "text",
         text: `My wardrobe:\n${wardrobe.map(compact).join("\n")}\n\nName the 3 additions that would unlock the most new outfits with what I already own. One line each, specific (colour and type), with how many new outfits each would roughly unlock.`,
       },
-    ], { maxTokens: 300 })
+    ], { maxTokens: 600 })
   ).trim();
 }

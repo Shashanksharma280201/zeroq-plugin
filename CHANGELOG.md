@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 (2026-11-07)
+
+- Fixed: onboarding could fail with "JSON.parse: end of data after property value" (Firefox) or "Unexpected end of JSON input" (Chrome) when the AI's answer hit its length limit. Zero Q now spots a cut-off answer from Claude or Gemini and asks once more with three times the room.
+- Longer limits for the style profile (4,000 tokens), ratings, brand batches, outfit plans and taste notes.
+- If an answer is ever incomplete, the message now says so in plain words.
+
 ## 0.2.0 (2026-11-06)
 
 Zero Q is a personal shopping companion for your browser. It rates any clothing item on any site against your style, checks it against your wardrobe, lets you try it on, and now remembers what you actually buy so its suggestions get better.

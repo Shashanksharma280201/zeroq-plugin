@@ -147,7 +147,7 @@ Return JSON with exactly these keys:
  "avatar": {"skin": hex close to my skin tone, "hair": hex, "hairStyle": buzz|short|wavy|long|bun|curly|covered, "facialHair": none|stubble|beard, "glasses": true|false, "build": slim|average|athletic|broad|curvy, "height": short|average|tall, "top": hex of my signature top colour, "bottom": hex, "shoes": hex, "topStyle": tee|shirt|kurta|jacket, "bottomStyle": trousers|jeans|skirt|shorts}
 }`,
   });
-  const raw = parseJson<any>(await askAI(PROFILER, content, { maxTokens: 1600, json: true }));
+  const raw = parseJson<any>(await askAI(PROFILER, content, { maxTokens: 4000, json: true }));
   return normaliseProfile(raw, answers, photos.length);
 }
 
@@ -276,7 +276,7 @@ Return JSON exactly in this shape:
 ${ITEM_SCHEMA(p.answers.useFrame)}`,
       },
     ],
-    { maxTokens: 900, json: true, temperature: 0 },
+    { maxTokens: 1600, json: true, temperature: 0 },
   );
   return toRating(parseJson<any>(text), p, opts.wardrobe, opts.price);
 }
@@ -308,7 +308,7 @@ ${wardrobeBlock([...opts.wardrobe, ...(opts.extra ?? [])])}
 For each ITEM above, report on the main clothing piece in its photo. Return JSON: {"items": [{"i": item number, ...fields}]} where fields are exactly:
 ${ITEM_SCHEMA(p.answers.useFrame)}`,
   });
-  const raw = parseJson<any>(await askAI(RATER, content, { maxTokens: 500 * opts.items.length, json: true, temperature: 0 }));
+  const raw = parseJson<any>(await askAI(RATER, content, { maxTokens: 900 * opts.items.length, json: true, temperature: 0 }));
   const list: any[] = Array.isArray(raw) ? raw : raw.items ?? [];
   return opts.items.map((it, i) => {
     const r = list.find((x) => Number(x?.i) === i) ?? list[i];

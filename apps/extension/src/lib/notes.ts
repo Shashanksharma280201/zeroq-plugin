@@ -41,7 +41,7 @@ Write 5 to 10 notes, each under 20 words, second person ("You buy...", "You turn
 Return {"notes": [{"text": "...", "evidence": [numbers]}]}`,
       },
     ],
-    { maxTokens: 900, json: true, temperature: 0.3 },
+    { maxTokens: 1600, json: true, temperature: 0.3 },
   );
   const raw = parseJson<any>(text);
   const list: any[] = Array.isArray(raw) ? raw : raw.notes ?? [];
