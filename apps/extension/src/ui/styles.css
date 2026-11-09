@@ -856,3 +856,50 @@ kbd { font: 600 12px/1 var(--font); padding: 3px 6px; border-radius: 5px; backgr
 .crash p { color: var(--muted); font-size: 15px; line-height: 1.5; margin: 0 0 20px; }
 .crash-actions { display: flex; gap: 10px; margin-bottom: 20px; }
 .crash pre { white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, Menlo, monospace; background: var(--surface); padding: 12px; border-radius: 10px; }
+
+/* =====================================================================
+   Explore: new for you, on purpose
+   ===================================================================== */
+.explore-card { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 14px; margin: 0 0 18px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--rule); background: var(--ground); }
+.explore-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.xc-art { display: flex; flex: none; }
+.xc-art i { width: 22px; height: 44px; border-radius: 11px; margin-right: -6px; box-shadow: 0 0 0 2px var(--ground); }
+.xc-txt { flex: 1; min-width: 0; display: grid; gap: 2px; margin-left: 6px; }
+.xc-txt b { font: 400 21px/1.1 var(--serif); }
+.xc-txt span { font-size: 13px; color: var(--muted); }
+.explore-card > svg { width: 20px; height: 20px; color: var(--faint); flex: none; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.idea-list { display: grid; gap: 12px; margin-bottom: 24px; }
+.idea { display: grid; grid-template-columns: 92px 1fr; gap: 14px; padding: 12px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--rule); }
+.idea.skel { height: 132px; background: var(--surface); box-shadow: none; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.55; } }
+.idea-art { border-radius: 10px; display: grid; place-items: center; min-height: 108px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06); }
+.idea-body { min-width: 0; display: grid; align-content: start; gap: 4px; }
+.idea-top { display: flex; align-items: center; gap: 8px; }
+.idea-kind { font: 600 11.5px/1 var(--font); letter-spacing: 0.06em; text-transform: uppercase; padding: 5px 8px; border-radius: 6px; background: var(--surface); }
+.idea-kind.k-budget { background: #f6ead2; color: #6b4a12; }
+.idea-kind.k-colour { background: #e3f0ec; color: #14544e; }
+.idea-price { font-size: 13px; color: var(--muted); }
+.idea h3 { font: 400 21px/1.15 var(--serif); margin: 2px 0 0; }
+.idea p { margin: 0; font-size: 14px; line-height: 1.4; color: var(--muted); }
+.idea-stores { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.store-chip { display: inline-flex; align-items: center; height: 30px; padding: 0 11px; border-radius: 15px; background: var(--primary); color: var(--on-primary); font: 600 13px/1 var(--font); text-decoration: none; }
+.store-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.busy-line { display: flex; align-items: center; gap: 10px; }
+.spin.dark { border-color: var(--rule); border-top-color: var(--text); }
+.new-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 10px; }
+.new-card { display: grid; gap: 5px; color: inherit; text-decoration: none; }
+.new-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 10px; }
+.new-img { position: relative; aspect-ratio: 3 / 4; border-radius: 10px; overflow: hidden; background: var(--surface); }
+.new-img img { width: 100%; height: 100%; object-fit: cover; }
+.new-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.nt { font: 600 11.5px/1 var(--font); font-style: normal; padding: 4px 7px; border-radius: 5px; background: #e3f0ec; color: #14544e; }
+.nt-budget { background: #f6ead2; color: #6b4a12; }
+.nt-category { background: #ece6f5; color: #4a3270; }
+.new-name { font-size: 14px; font-weight: 500; }
+.new-price { font-size: 13px; color: var(--muted); }
+@media (prefers-color-scheme: dark) {
+  .idea-kind.k-budget, .nt-budget { background: #3a2f1a; color: #f0d9a8; }
+  .idea-kind.k-colour, .nt { background: #17332f; color: #a8dcd3; }
+  .nt-category { background: #2c2440; color: #d2c4ef; }
+}

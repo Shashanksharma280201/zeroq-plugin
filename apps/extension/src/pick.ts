@@ -1,4 +1,5 @@
 import type { ToBackground, ToContent } from "./lib/messages.ts";
+import { relatedImages } from "./related.ts";
 
 /**
  * Pick mode: point at any clothing photo on any site and click to rate it.
@@ -64,12 +65,22 @@ const ring = () => root.querySelector(".ring") as HTMLElement;
 const hint = () => root.querySelector(".hint") as HTMLElement;
 const card = () => root.querySelector(".card") as HTMLElement;
 
+/** A hover-only photo (the back view a store fades in) that the shopper can't see right now. */
+function unseen(el: Element): boolean {
+  for (let n: Element | null = el; n && n !== document.body; n = n.parentElement) {
+    const s = getComputedStyle(n);
+    if (Number(s.opacity) < 0.1 || s.visibility === "hidden") return true;
+  }
+  return false;
+}
+
 /** The clothing photo under the pointer: an <img> or a large background image. */
 function candidateAt(x: number, y: number): { el: Element; src: string; alt?: string } | null {
   for (const el of document.elementsFromPoint(x, y)) {
     if (el === host) continue;
     const r = el.getBoundingClientRect();
     if (r.width < 90 || r.height < 90) continue;
+    if (unseen(el)) continue;
     if (el instanceof HTMLImageElement && (el.currentSrc || el.src)) return { el, src: el.currentSrc || el.src, alt: el.alt };
     const pic = el.querySelector?.(":scope > picture img, :scope > img") as HTMLImageElement | null;
     if (pic && (pic.currentSrc || pic.src) && pic.getBoundingClientRect().width >= 90) return { el: pic, src: pic.currentSrc || pic.src, alt: pic.alt };
@@ -99,7 +110,8 @@ function onClick(e: MouseEvent) {
   stop();
   pinned = { el: c.el, src: c.src };
   showCard({ type: "rating", src: c.src, state: "working" });
-  chrome.runtime.sendMessage({ type: "picked", src: c.src, alt: c.alt, title: document.title, url: location.href } satisfies ToBackground);
+  const more = relatedImages(c.src, c.el).slice(1);
+  chrome.runtime.sendMessage({ type: "picked", src: c.src, alt: c.alt, title: document.title, url: location.href, more } satisfies ToBackground);
 }
 
 function onKey(e: KeyboardEvent) {

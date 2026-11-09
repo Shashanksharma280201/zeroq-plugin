@@ -296,6 +296,8 @@ function wardrobeBlock(wardrobe: WardrobeItem[]): string {
 
 export async function rateItem(opts: {
   image: Blob;
+  /** the same product from other angles */
+  angles?: Blob[];
   pageTitle?: string;
   pageUrl?: string;
   hint?: string;
@@ -312,9 +314,10 @@ export async function rateItem(opts: {
     RATER,
     [
       await imagePart(opts.image, 896),
+      ...(await Promise.all((opts.angles ?? []).slice(0, 3).map((b) => imagePart(b, 640)))),
       {
         type: "text",
-        text: `The item is the main clothing piece in this image${opts.hint ? ` (${opts.hint})` : ""}. Page: ${opts.pageTitle ?? ""} ${opts.pageUrl ?? ""}
+        text: `The item is the main clothing piece in ${opts.angles?.length ? `these ${opts.angles.length + 1} images. They show the same product from different angles: use all of them for colour, fabric, cut and details` : "this image"}${opts.hint ? ` (${opts.hint})` : ""}. Page: ${opts.pageTitle ?? ""} ${opts.pageUrl ?? ""}
 
 ${profileBlock(p)}
 ${mem}

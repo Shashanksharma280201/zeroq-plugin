@@ -37,7 +37,12 @@ chrome.action.onClicked.addListener((tab) => openPanel(tab.id));
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId !== "zq-rate" || tab?.id == null || !info.srcUrl) return;
   openPanel(tab.id);
-  storePick(tab.id, { src: info.srcUrl, title: tab.title ?? "", url: info.pageUrl ?? tab.url ?? "", at: Date.now() });
+  const pick = { src: info.srcUrl, title: tab.title ?? "", url: info.pageUrl ?? tab.url ?? "", at: Date.now() };
+  // Ask the page for the product's other photos; the rating waits a moment for them.
+  chrome.tabs.sendMessage(tab.id, { type: "related", src: info.srcUrl }).then(
+    (more: string[]) => storePick(tab.id!, { ...pick, more: Array.isArray(more) ? more : [] }),
+    () => storePick(tab.id!, pick),
+  );
   logEvent("item_picked", { url: info.pageUrl ?? tab.url, src: info.srcUrl, title: tab.title, via: "menu" }).catch(() => {});
 });
 
@@ -90,7 +95,7 @@ chrome.runtime.onMessage.addListener((msg: ToBackground, sender, reply) => {
   }
   if (msg.type === "picked" && tabId != null) {
     openPanel(tabId);
-    storePick(tabId, { src: msg.src, title: msg.title, url: msg.url, alt: msg.alt, at: Date.now() });
+    storePick(tabId, { src: msg.src, title: msg.title, url: msg.url, alt: msg.alt, more: msg.more, at: Date.now() });
     logEvent("item_picked", { url: msg.url, src: msg.src, title: msg.title, name: msg.alt, via: "point" }).catch(() => {});
     return false;
   }

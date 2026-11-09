@@ -128,7 +128,7 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
             <img src={pick.src} alt={pick.alt ?? "Picked item"} referrerPolicy="no-referrer" />
             <figcaption className="caps">{[host, pick.alt].filter(Boolean).join(" / ")}</figcaption>
           </figure>
-          <RatingPanel key={`rate-${pick.src}`} src={pick.src} title={pick.title} url={pick.url} hint={pick.alt} profile={profile} wardrobe={wardrobe} tabId={tabId}
+          <RatingPanel key={`rate-${pick.src}`} src={pick.src} more={pick.more} title={pick.title} url={pick.url} hint={pick.alt} profile={profile} wardrobe={wardrobe} tabId={tabId}
             ctx={{ itemKey: itemKeyOf(pick.url, pick.src), brand: host }}
             goStyle={goStyle} onTryOn={(category) => onTryOn({ src: pick.src, category: category as any, name: pick.alt || "this item", hex: cachedRating(pick.src)?.item.hex, itemKey: itemKeyOf(pick.url, pick.src) })} />
           {originOf(pick.url)?.startsWith("http") && (
@@ -241,7 +241,7 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
 
         {scored ? (
           <>
-            <RatingPanel key={`rate-${p.images[0]}`} src={p.images[0]} title={p.name} url={p.url} hint={[p.brand, p.name].filter(Boolean).join(" ")} profile={profile} wardrobe={others} tabId={tabId}
+            <RatingPanel key={`rate-${p.images[0]}`} src={p.images[0]} more={p.images.slice(1, 4)} title={p.name} url={p.url} hint={[p.brand, p.name].filter(Boolean).join(" ")} profile={profile} wardrobe={others} tabId={tabId}
               ctx={ctx} goStyle={goStyle} />
             <div className="wcheck">
               <h2 className="section">{owned ? "It's in your wardrobe" : "With your wardrobe"}</h2>
@@ -276,7 +276,7 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
               )}
             </section>
             {!profile && (
-              <RatingPanel src={p.images[0] ?? ""} title={p.name} url={p.url} profile={profile} wardrobe={others} goStyle={goStyle} ctx={ctx} />
+              <RatingPanel src={p.images[0] ?? ""} more={p.images.slice(1, 4)} title={p.name} url={p.url} profile={profile} wardrobe={others} goStyle={goStyle} ctx={ctx} />
             )}
             {check.duplicates.length > 0 && (
               <>

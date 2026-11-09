@@ -89,3 +89,20 @@ describe("matching", () => {
     expect(new Set(o.map((x) => x.itemIds[0])).size).toBe(2);
   });
 });
+
+describe("product gallery", () => {
+  it("adds every og:image and large gallery images from the same host, skipping thumbs and ads", async () => {
+    const { Window } = await import("happy-dom");
+    const w = new Window({ url: "https://shop.example/p/1" });
+    w.document.write(`<html><head>
+      <meta property="og:type" content="product"><meta property="og:title" content="Rust overshirt"><meta property="product:price:amount" content="1499">
+      <meta property="og:image" content="https://cdn.shop.example/a.jpg"><meta property="og:image" content="https://cdn.shop.example/b.jpg">
+      </head><body><div class="pdp-gallery">
+        <img src="https://cdn.shop.example/c.jpg" width="800"><img src="https://cdn.shop.example/a.jpg" width="800">
+        <img src="https://cdn.shop.example/thumb.jpg" width="80"><img src="https://ads.other.example/x.jpg" width="800">
+      </div></body></html>`);
+    const { detectProduct } = await import("../src/index.ts");
+    const p = detectProduct(w.document as any, "https://shop.example/p/1")!;
+    expect(p.images).toEqual(["https://cdn.shop.example/a.jpg", "https://cdn.shop.example/b.jpg", "https://cdn.shop.example/c.jpg"]);
+  });
+});

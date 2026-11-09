@@ -6,6 +6,7 @@ import { Avatar } from "./components/Avatar.tsx";
 import { ScoreDot } from "./components/Outfit.tsx";
 import { cachedRating } from "./components/Rating.tsx";
 import { Searched } from "./screens/Searched.tsx";
+import { Explore, ExploreCard } from "./screens/Explore.tsx";
 import { Settings } from "./screens/Settings.tsx";
 import { Style } from "./screens/Style.tsx";
 import { ThisItem, useActiveProduct } from "./screens/ThisItem.tsx";
@@ -19,7 +20,7 @@ import { Wardrobe } from "./screens/Wardrobe.tsx";
  * your avatar.
  */
 type Tab = "searched" | "wardrobe";
-type Over = null | "item" | "me" | "settings";
+type Over = null | "item" | "me" | "settings" | "explore";
 type Surface = "sidepanel" | "app";
 
 export function App({ surface }: { surface: Surface }) {
@@ -46,6 +47,12 @@ export function App({ surface }: { surface: Surface }) {
   }, [profile === null]);
 
   const now = surface === "sidepanel" && over !== "item" ? <NowCard active={active} onOpen={() => open("item")} /> : null;
+  // The shop on the open tab, for "new for you at this brand"
+  const [origin, setOrigin] = useState<string | undefined>();
+  useEffect(() => {
+    if (surface !== "sidepanel" || active.tabId == null) return setOrigin(undefined);
+    chrome.tabs.get(active.tabId).then((t) => setOrigin(t.url && /^https?:/.test(t.url) ? new URL(t.url).origin : undefined), () => setOrigin(undefined));
+  }, [active.tabId, active.product?.url]);
 
   return (
     <HudProvider>
@@ -73,8 +80,10 @@ export function App({ surface }: { surface: Surface }) {
             <Style />
           ) : over === "settings" ? (
             <Settings wardrobe={wardrobe} surface={surface} />
+          ) : over === "explore" ? (
+            <Explore origin={origin} tabId={active.tabId} />
           ) : tab === "searched" ? (
-            <Searched wardrobe={wardrobe} top={now} />
+            <Searched wardrobe={wardrobe} top={<>{now}{profile && <ExploreCard onOpen={() => open("explore")} />}</>} />
           ) : (
             <Wardrobe wardrobe={wardrobe} onTryOn={tryItem} top={now} />
           )}

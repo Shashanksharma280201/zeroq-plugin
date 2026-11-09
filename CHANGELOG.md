@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 (2026-11-09)
+
+- Every angle: when you rate a product, Zero Q now sends up to 4 photos of it (front, back, worn, detail), not just the one you clicked. On a product page it reads the store's gallery; on a listing it takes the other photos inside that product's card, including the back view stores show on hover.
+- Fixed: pointing at a listing card could grab the hidden hover photo instead of the one you see.
+- New: Explore. A card on Searched opens ideas that are new for you, chosen from what you search and what you own: a colour you never wear, a kind of piece you never try, one thing worth going over your usual budget, and a new occasion. Each idea links straight to a search on Myntra, Ajio, Amazon and Flipkart.
+- New: on a brand's own site, "Look through" scans its catalogue for pieces that are new for you but still suit you, tagged by why they are new.
+
 ## 0.3.1 (2026-11-09)
 
 - Fixed: the panel could go blank after updating to 0.3.0. The new top bar draws your character on every screen, and a profile saved by an early version (or a cut-off AI answer) without character data crashed it. Profiles are now filled in with safe defaults when they load.

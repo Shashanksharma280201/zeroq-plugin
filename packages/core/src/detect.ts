@@ -9,7 +9,45 @@ import type { DetectedProduct } from "./types.ts";
  *   1. JSON-LD  2. microdata  3. Open Graph product tags
  */
 export function detectProduct(doc: Document, url = doc.location?.href ?? ""): DetectedProduct | null {
-  return fromJsonLd(doc, url) ?? fromMicrodata(doc, url) ?? fromOpenGraph(doc, url);
+  const p = fromJsonLd(doc, url) ?? fromMicrodata(doc, url) ?? fromOpenGraph(doc, url);
+  if (p && p.images.length < 4) p.images = withGallery(doc, url, p.images);
+  return p;
+}
+
+const GALLERY = '[class*="gallery" i], [class*="carousel" i], [class*="slider" i], [class*="swiper" i], [class*="pdp" i], [class*="product-image" i], [class*="productimage" i], [class*="image-grid" i], [class*="media" i], [id*="gallery" i]';
+const keyOf = (u: string) => { try { const x = new URL(u); return x.hostname + x.pathname.replace(/[-_](\d{2,4}x\d{2,4}|small|thumb|medium)(?=\.)/i, ""); } catch { return u; } };
+
+/**
+ * Other photos of the same product: every og:image tag, then large images in
+ * the page's gallery area. Stores often list one image in structured data
+ * and keep the rest (back, side, worn) only in the page.
+ */
+export function withGallery(doc: Document, url: string, first: string[], max = 6): string[] {
+  const out = [...first];
+  const seen = new Set(out.map(keyOf));
+  const add = (raw?: string | null) => {
+    if (!raw || out.length >= max || raw.startsWith("data:")) return;
+    const u = absolute(raw.trim().split(/\s+/)[0], url);
+    if (/sprite|logo|icon|placeholder|blank\.gif|\.svg(\?|$)/i.test(u)) return;
+    const k = keyOf(u);
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(u);
+  };
+  doc.querySelectorAll('meta[property="og:image"], meta[property="og:image:url"], meta[name="og:image"]').forEach((m) => add(m.getAttribute("content")));
+  const host = (() => { try { return new URL(out[0] ?? "").hostname; } catch { return ""; } })();
+  for (const area of Array.from(doc.querySelectorAll(GALLERY)).slice(0, 12)) {
+    for (const img of Array.from(area.querySelectorAll("img")).slice(0, 12)) {
+      const w = Number(img.getAttribute("width")) || (img as HTMLImageElement).naturalWidth || 0;
+      if (w && w < 150) continue; // thumbnails strip and swatches
+      const src = img.getAttribute("data-src") ?? img.getAttribute("src") ?? img.getAttribute("data-srcset")?.split(",").pop() ?? null;
+      // keep to the same image host as the main photo, so ads and recommendations stay out
+      if (src && host) { try { if (new URL(absolute(src.trim().split(/\s+/)[0], url)).hostname !== host) continue; } catch {} }
+      add(src);
+    }
+    if (out.length >= max) break;
+  }
+  return out;
 }
 
 // ---------- JSON-LD ----------

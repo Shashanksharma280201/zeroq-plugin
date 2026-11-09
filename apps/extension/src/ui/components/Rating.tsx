@@ -39,9 +39,9 @@ export function snapshotOf(r: Rating, ctx: ItemContext & { url?: string }): Item
 }
 
 export function RatingPanel({
-  src, title, url, hint, profile, wardrobe, tabId, onTryOn, goStyle, ctx,
+  src, more, title, url, hint, profile, wardrobe, tabId, onTryOn, goStyle, ctx,
 }: {
-  src: string; title: string; url: string; hint?: string; profile: StyleProfile | null | undefined; wardrobe: WardrobeItem[];
+  src: string; more?: string[]; title: string; url: string; hint?: string; profile: StyleProfile | null | undefined; wardrobe: WardrobeItem[];
   tabId?: number; onTryOn?: (category: string) => void; goStyle: () => void; ctx: ItemContext;
 }) {
   const settings = useSettings();
@@ -64,9 +64,13 @@ export function RatingPanel({
     setRating(null);
     tell({ state: "working" });
     (async () => {
-      const [image, memory, events] = await Promise.all([srcToBlob(src, 1024), getMemory(), listEvents()]);
+      const [image, memory, events, angles] = await Promise.all([
+        srcToBlob(src, 1024), getMemory(), listEvents(),
+        // other angles of the same product; a photo that fails to load is simply skipped
+        Promise.all((more ?? []).filter((u) => u !== src).slice(0, 3).map((u) => srcToBlob(u, 768).catch(() => null))).then((x) => x.filter((b): b is Blob => !!b)),
+      ]);
       const history = retrieveEvents(events, { itemKey: ctx.itemKey, brand: ctx.brand, price: ctx.price }, 8);
-      const r = await rateItem({ image, pageTitle: title, pageUrl: url, hint, profile, wardrobe, price: ctx.price, memory, history });
+      const r = await rateItem({ image, angles, pageTitle: title, pageUrl: url, hint, profile, wardrobe, price: ctx.price, memory, history });
       cache.set(src, r);
       // A small copy of the photo, so history still shows it after the shop's image link expires.
       const thumbKey = `thumb:${ctx.itemKey}`;

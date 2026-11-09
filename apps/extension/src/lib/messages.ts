@@ -6,12 +6,13 @@ export type ToBackground =
   | { type: "open-panel" }
   | { type: "mute-site"; host: string }
   | { type: "sync-now" }
-  | { type: "picked"; src: string; title: string; url: string; alt?: string };
+  | { type: "picked"; src: string; title: string; url: string; alt?: string; more?: string[] };
 
 /** Background or panel -> content script */
 export type ToContent =
   | { type: "detect" }
   | { type: "pick-start" }
+  | { type: "related"; src: string }
   | { type: "links" }
   | { type: "rating"; src: string; state: "working" | "done" | "error"; score?: number; verdict?: string; headline?: string; hex?: string };
 
@@ -21,6 +22,8 @@ export interface Pick {
   title: string;
   url: string;
   alt?: string;
+  /** other photos of the same product: back, side, worn */
+  more?: string[];
   at: number;
 }
 
