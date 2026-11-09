@@ -11,6 +11,11 @@ import { getProfile, onProfile, type StyleProfile } from "../../lib/profile.ts";
 
 const s = { fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 export const Icon = {
+  chevronLeft: () => (<svg viewBox="0 0 24 24" {...s} strokeWidth={2.2}><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>),
+  chevronRight: () => (<svg viewBox="0 0 24 24" {...s} strokeWidth={2.2}><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg>),
+  photos: () => (<svg viewBox="0 0 24 24" {...s}><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.7"/><path d="m20.5 16-4.6-4.6a1.2 1.2 0 0 0-1.7 0L7 18.8"/></svg>),
+  upload: () => (<svg viewBox="0 0 24 24" {...s}><path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9"/><path d="M4.5 15v3a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-3"/></svg>),
+  group: () => (<svg viewBox="0 0 24 24" {...s}><circle cx="8" cy="8.5" r="2.6"/><circle cx="16.2" cy="9.3" r="2.2"/><path d="M3.2 19c.4-3 2.4-4.8 4.8-4.8s4.4 1.8 4.8 4.8M13.6 18.6c.3-2.2 1.4-3.6 2.8-3.9 2 .2 3.6 1.7 4 4.3"/></svg>),
   tag: () => (<svg viewBox="0 0 24 24" {...s}><path d="M3.5 12.6V4.8c0-.7.6-1.3 1.3-1.3h7.8c.35 0 .68.14.92.38l7.4 7.4a1.3 1.3 0 0 1 0 1.84l-7.8 7.8a1.3 1.3 0 0 1-1.84 0l-7.4-7.4a1.3 1.3 0 0 1-.38-.92Z"/><circle cx="8.2" cy="8.2" r="1.4"/></svg>),
   sun: () => (<svg viewBox="0 0 24 24" {...s}><circle cx="12" cy="12" r="4.2"/><path d="M12 2.8v2M12 19.2v2M4.6 4.6 6 6M18 18l1.4 1.4M2.8 12h2M19.2 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg>),
   hanger: () => (<svg viewBox="0 0 24 24" {...s}><path d="M12 8.2V7.6a2.1 2.1 0 1 0-2.1-2.1"/><path d="M12 8.2 3.4 15.4c-.8.67-.33 1.98.72 1.98h15.76c1.05 0 1.52-1.31.72-1.98L12 8.2Z"/></svg>),
@@ -125,7 +130,11 @@ export function ZQMark({ size = 22 }: { size?: number }) {
   );
 }
 
+/** Inside another screen (Today within Wardrobe): no big title, just the content. */
+export const Embedded = createContext(false);
+
 export function Page({ title, serif, subtitle, trailing, children }: { title: string; serif?: boolean; subtitle?: ReactNode; trailing?: ReactNode; children: ReactNode }) {
+  if (useContext(Embedded)) return <div className="embedded">{children}</div>;
   const sentinel = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {

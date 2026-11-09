@@ -190,3 +190,63 @@ export function occasionFormality(occasion: string): number {
   if (/gym|run|home|lounge|sleep|errand/.test(o)) return 1;
   return 2;
 }
+
+/** What completes an outfit around a piece of each kind. */
+const COMPLETES: Record<Category, Category[][]> = {
+  top: [["bottom"], ["footwear"], ["outerwear"]],
+  bottom: [["top"], ["footwear"], ["outerwear"]],
+  "one-piece": [["footwear"], ["outerwear"], ["accessory"]],
+  outerwear: [["top"], ["bottom"], ["footwear"]],
+  footwear: [["top", "one-piece"], ["bottom"], ["outerwear"]],
+  accessory: [["top", "one-piece"], ["bottom"], ["footwear"]],
+  other: [["top"], ["bottom"], ["footwear"]],
+};
+
+export interface BestOutfit {
+  /** the pieces from your wardrobe, in wearing order */
+  pieces: WardrobeItem[];
+  /** 0..1, how well they go together */
+  score: number;
+  /** ids the AI picked that made it in */
+  fromAI: string[];
+}
+
+/**
+ * The best full outfit from your wardrobe around one piece: one item per
+ * missing slot (a bottom for a top, then shoes, then a layer if one fits).
+ * Pieces the AI chose when it rated the item win their slot when they fit.
+ */
+export function bestOutfit(p: Itemish & { id?: string }, wardrobe: WardrobeItem[], aiPicks: string[] = []): BestOutfit {
+  const pool = wardrobe.filter((i) => i.id !== p.id);
+  const pairs = findPairs(p, pool, 50);
+  const scoreOf = new Map(pairs.map((x) => [x.item.id, x.score]));
+  const pieces: WardrobeItem[] = [];
+  const fromAI: string[] = [];
+  let total = 0;
+  for (const [slot, cats] of (COMPLETES[p.category] ?? COMPLETES.other).entries()) {
+    const ai = aiPicks.map((id) => pool.find((i) => i.id === id)).find((i) => i && cats.includes(i.category) && !pieces.includes(i));
+    // the AI's pick wins its slot even if the offline maths scored it lower
+    let pick = ai;
+    if (!pick) {
+      const cands = pool.filter((i) => cats.includes(i.category) && !pieces.includes(i));
+      // second and later pieces must also go with what is already chosen
+      const ranked = cands
+        .map((i) => ({ i, s: (scoreOf.get(i.id) ?? 0) * 0.7 + avgHarmony(i, pieces) * 0.3 }))
+        .sort((a, b) => b.s - a.s);
+      const best = ranked[0];
+      const needed = slot === 0; // the first slot is what makes it an outfit; the rest are extras
+      if (best && (best.s >= 0.5 || (needed && best.s >= 0.3))) pick = best.i;
+    }
+    if (pick) {
+      pieces.push(pick);
+      if (ai === pick) fromAI.push(pick.id);
+      total += scoreOf.get(pick.id) ?? 0.6;
+    }
+  }
+  return { pieces, score: pieces.length ? total / pieces.length : 0, fromAI };
+}
+
+function avgHarmony(i: WardrobeItem, chosen: WardrobeItem[]): number {
+  if (!chosen.length) return 1;
+  return chosen.reduce((s, c) => s + colorHarmony(i.colors, c.colors).score, 0) / chosen.length;
+}

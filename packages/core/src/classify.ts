@@ -114,3 +114,31 @@ export const COLOR_HEX: Record<string, string> = {
   brown: "#7a5232", green: "#3f8f5a", red: "#c4302b", pink: "#e98aa8", purple: "#7d4fb8",
   yellow: "#e9c23e", orange: "#ec7a2a",
 };
+
+/** Nearest named colour for any hex, so colours from photos can be matched like product colours. */
+export function nameForHex(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return "";
+  const rgb = (h: string) => [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [r, g, b] = rgb(m[1]);
+  let best = "", d = Infinity;
+  for (const [name, h] of Object.entries(COLOR_HEX)) {
+    const [r2, g2, b2] = rgb(h.slice(1));
+    // weighted RGB distance: good enough to name a colour
+    const dist = 2 * (r - r2) ** 2 + 4 * (g - g2) ** 2 + 3 * (b - b2) ** 2;
+    if (dist < d) { d = dist; best = name; }
+  }
+  return best;
+}
+
+/** Colour names for a list of swatches or names, deduplicated. */
+export function colourNames(cs: Array<string | { name?: string; hex?: string }> | undefined): string[] {
+  const out = new Set<string>();
+  for (const c of cs ?? []) {
+    if (typeof c === "string") { if (COLOR_HEX[c]) out.add(c); else { const g = guessColors(c)[0]; if (g) out.add(g); } continue; }
+    const byName = c.name ? guessColors(c.name)[0] : undefined;
+    const n = byName ?? (c.hex ? nameForHex(c.hex) : "");
+    if (n) out.add(n);
+  }
+  return [...out];
+}

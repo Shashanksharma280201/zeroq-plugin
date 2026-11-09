@@ -1,6 +1,9 @@
 import { aiReady } from "../../lib/settings.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CATEGORIES, guessColors, guessKind, type Category, type WardrobeItem } from "@zq/core";
+import { CATEGORIES, bestOutfit, guessColors, guessKind, type Category, type WardrobeItem } from "@zq/core";
+import { OutfitRow } from "../components/Outfit.tsx";
+import { Embedded } from "../components/kit.tsx";
+import { Today } from "./Today.tsx";
 import { tagPhoto } from "../../lib/ai.ts";
 import { addItem, deleteItem, updateItem } from "../../lib/db.ts";
 import { canTryOn } from "../../lib/vto.ts";
@@ -17,7 +20,10 @@ const FILTERS: Array<{ value: Filter; label: string }> = [
 ];
 const CAT_LABEL: Record<Category, string> = { top: "Top", bottom: "Bottom", "one-piece": "One piece", outerwear: "Layer", footwear: "Shoes", accessory: "Accessory", other: "Other" };
 
-export function Wardrobe({ wardrobe, onTryOn }: { wardrobe: WardrobeItem[]; onTryOn: (item: WardrobeItem) => void }) {
+type Mode = "pieces" | "outfits";
+
+export function Wardrobe({ wardrobe, onTryOn, top }: { wardrobe: WardrobeItem[]; onTryOn: (item: WardrobeItem) => void; top?: React.ReactNode }) {
+  const [mode, setMode] = useState<Mode>("pieces");
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(location.hash === "#add");
@@ -41,6 +47,14 @@ export function Wardrobe({ wardrobe, onTryOn }: { wardrobe: WardrobeItem[]; onTr
       subtitle={wardrobe.length ? `${wardrobe.length} ${wardrobe.length === 1 ? "piece" : "pieces"}` : undefined}
       trailing={<button className="icon-btn" aria-label="Add clothes" onClick={() => setAdding(true)}><Icon.plus /></button>}
     >
+      {top}
+      {wardrobe.length > 0 && (
+        <Segmented<Mode> label="View" value={mode} onChange={(v) => transition(() => setMode(v))}
+          options={[{ value: "pieces", label: "Pieces" }, { value: "outfits", label: "Outfits" }]} />
+      )}
+      {mode === "outfits" && wardrobe.length > 0 ? (
+        <Embedded.Provider value={true}><Today wardrobe={wardrobe} goWardrobe={() => setMode("pieces")} /></Embedded.Provider>
+      ) : (<>
       {(tops < 5 || bottoms < 5) && (
         <section className="ladder">
           <h3>{wardrobe.length === 0 ? "Start with your 10 favourites" : "Almost there"}</h3>
@@ -63,21 +77,13 @@ export function Wardrobe({ wardrobe, onTryOn }: { wardrobe: WardrobeItem[]; onTr
           {shown.length === 0 ? (
             <div className="empty"><h3>Nothing here yet</h3><p>Try another category or search.</p></div>
           ) : (
-            <div className="grid">
-              {shown.map((i) => (
-                <button className="tile" key={i.id} onClick={() => setOpen(i)} style={{ viewTransitionName: `it-${i.id}` } as any}>
-                  <div className="img"><ItemImg item={i} /></div>
-                  <div className="name truncate">{i.name}</div>
-                  <div className="swatches" aria-label={i.colors.join(", ")}>
-                    {i.colors.map((c) => <i key={c} style={{ background: SWATCH[c] ?? "var(--fill)" }} />)}
-                    <span className="sub truncate" style={{ margin: 0, padding: "0 0 0 4px" }}>{i.wornCount ? `Worn ${i.wornCount}×` : i.brand ?? CAT_LABEL[i.category]}</span>
-                  </div>
-                </button>
-              ))}
+            <div className="eqn-list">
+              {shown.map((i) => <PieceRow key={i.id} item={i} wardrobe={wardrobe} onOpen={() => setOpen(i)} />)}
             </div>
           )}
         </>
       )}
+      </>)}
 
       <AddSheet open={adding} onClose={() => setAdding(false)} defaultCategory={filter === "all" || filter === "more" ? undefined : filter} />
       <ItemSheet item={open} onClose={() => setOpen(null)} onTryOn={(i) => { setOpen(null); onTryOn(i); }} />
@@ -261,5 +267,19 @@ function ItemSheet({ item, onClose, onTryOn }: { item: WardrobeItem | null; onCl
         <button className="btn danger block" onClick={async () => { await deleteItem(it.id); hud("Removed"); onClose(); }}>Remove from wardrobe</button>
       </div>
     </Sheet>
+  );
+}
+
+/** One piece you own, with the best outfit around it from the rest of your wardrobe. */
+function PieceRow({ item, wardrobe, onOpen }: { item: WardrobeItem; wardrobe: WardrobeItem[]; onOpen: () => void }) {
+  const o = useMemo(() => bestOutfit(item, wardrobe), [item, wardrobe]);
+  return (
+    <OutfitRow
+      main={<div className="ph-wrap" style={{ viewTransitionName: `it-${item.id}` } as any}><ItemImg item={item} />{item.wornCount > 0 && <span className="worn-dot" aria-label={`Worn ${item.wornCount} times`}>{item.wornCount}×</span>}</div>}
+      pieces={o.pieces}
+      onClick={onOpen}
+      label={`${item.name}. Wear with ${o.pieces.map((p) => p.name).join(", ") || "nothing yet"}.`}
+      aside={<><b className="swatch-line">{item.colors.map((c) => <i key={c} style={{ background: SWATCH[c] ?? "var(--fill)" }} />)}{item.name}</b>{item.brand && <span>{item.brand}</span>}</>}
+    />
   );
 }

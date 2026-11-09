@@ -12,7 +12,7 @@ import { BrandShop } from "./BrandShop.tsx";
 import { canTryOn } from "../../lib/vto.ts";
 import { Icon, ItemImg, Page, ZQMark, money, useHud, useSettings } from "../components/kit.tsx";
 
-function useActiveProduct(): { product: DetectedProduct | null; pick: Pick | null; tabId?: number; loading: boolean; recheck: () => void; clearPick: () => void } {
+export function useActiveProduct(): { product: DetectedProduct | null; pick: Pick | null; tabId?: number; loading: boolean; recheck: () => void; clearPick: () => void } {
   const [tabId, setTabId] = useState<number>();
   const [product, setProduct] = useState<DetectedProduct | null>(null);
   const [pick, setPick] = useState<Pick | null>(null);

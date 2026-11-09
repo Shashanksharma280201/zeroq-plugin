@@ -270,3 +270,43 @@ export async function wardrobeGaps(wardrobe: WardrobeItem[]): Promise<string> {
     ], { maxTokens: 600 })
   ).trim();
 }
+
+// ---------- find the people in a photo ----------
+
+export interface PersonBox {
+  /** fractions of the image, 0..1: left, top, right, bottom */
+  box: [number, number, number, number];
+  /** head to toe, or close to it */
+  fullBody: boolean;
+}
+
+/**
+ * Finds each person in a photo. With a reference photo of the user, also
+ * says which one is them (or null when unsure). The user always confirms.
+ */
+export async function findPeople(photo: Blob, reference?: Blob): Promise<{ people: PersonBox[]; me: number | null }> {
+  const content: Content[] = [];
+  if (reference) content.push({ type: "text", text: "Image A is the user." }, await imagePart(reference, 512));
+  content.push({ type: "text", text: reference ? "Image B:" : "The photo:" }, await imagePart(photo, 1024));
+  content.push({
+    type: "text",
+    text: `List every person clearly visible in ${reference ? "image B" : "the photo"}, largest first, at most 8.
+For each, a box around their whole body and clothes as [ymin, xmin, ymax, xmax] on a 0 to 1000 scale, and whether it shows them head to toe or close to it.
+${reference ? 'Then say which person in image B is the user from image A, by index, or null if you are not sure.' : 'Set "me" to null.'}
+Return JSON only: {"people": [{"box_2d": [ymin, xmin, ymax, xmax], "fullBody": true}], "me": 0}`,
+  });
+  const text = await askAI("You locate people in photos precisely. You never identify who someone is by name. JSON only.", content, { maxTokens: 500, json: true, temperature: 0 });
+  const r = parseJson<any>(text);
+  const people: PersonBox[] = (Array.isArray(r.people) ? r.people : [])
+    .map((p: any) => {
+      const b = (p.box_2d ?? p.box ?? []).map(Number);
+      if (b.length !== 4 || b.some((n: number) => !Number.isFinite(n))) return null;
+      const [y0, x0, y1, x1] = b.map((n: number) => Math.min(1, Math.max(0, n / 1000)));
+      if (x1 - x0 < 0.03 || y1 - y0 < 0.05) return null;
+      return { box: [x0, y0, x1, y1], fullBody: !!p.fullBody } as PersonBox;
+    })
+    .filter(Boolean)
+    .slice(0, 8);
+  const me = Number.isInteger(r.me) && r.me >= 0 && r.me < people.length ? r.me : null;
+  return { people, me };
+}

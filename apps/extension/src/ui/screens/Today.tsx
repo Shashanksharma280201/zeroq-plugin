@@ -48,7 +48,7 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
         if (o.length) logEvent("outfit_suggested", { occasion, outfits: o.map((x) => x.itemIds) }).catch(() => {});
         if (live) (setOutfits(o.length ? o : offline()), setAiUsed(o.length > 0));
       })
-      .catch((e) => live && (setErr(e.message), setOutfits(offline()), setAiUsed(false)));
+      .catch((e) => live && (setErr(friendly(e)), setOutfits(offline()), setAiUsed(false)));
     return () => {
       live = false;
     };
@@ -146,4 +146,10 @@ export function Today({ wardrobe, goWardrobe }: { wardrobe: WardrobeItem[]; goWa
       )}
     </Page>
   );
+}
+
+/** Errors a person can act on keep their words; anything internal becomes one plain line. */
+function friendly(e: any): string {
+  const m: string = e?.message ?? "";
+  return /key|quota|billing|rate limit|declined|Settings/i.test(m) ? m : "Your stylist could not plan outfits just now.";
 }

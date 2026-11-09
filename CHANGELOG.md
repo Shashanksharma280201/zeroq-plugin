@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 (2026-11-09)
+
+- **Two tabs.** *Searched*: everything you asked Zero Q about, each shown as a picture equation, the item = the best outfit from your wardrobe (✦ when your stylist picked it). *Wardrobe*: everything you own, each with its best outfit, plus an Outfits view for today. Tap a row for the outfit laid out, with Open, I bought it (moves it to Wardrobe) and Remove.
+- On a shop page, a *Now viewing* card opens the "Should I buy this?" answer; a right-click or point opens it straight away. Profile and settings live behind your avatar.
+- **Onboarding photos from anywhere:** Google Photos (pick inside Google Photos, tip: search "me"), uploads, and group photos where you tap yourself and Zero Q crops to you. 3 to 20 photos.
+- AI key comes first in onboarding, so photos can be checked as they arrive.
+
 ## 0.2.1 (2026-11-07)
 
 - Fixed: onboarding could fail with "JSON.parse: end of data after property value" (Firefox) or "Unexpected end of JSON input" (Chrome) when the AI's answer hit its length limit. Zero Q now spots a cut-off answer from Claude or Gemini and asks once more with three times the room.

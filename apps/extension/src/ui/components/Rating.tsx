@@ -80,6 +80,8 @@ export function RatingPanel({
         verdict: r.verdict,
         parts: r.parts.map((p) => ({ key: p.key, value: p.value })),
         caps: r.caps.map((c) => c.reason),
+        // the AI's choice of what to wear it with, by wardrobe id
+        pairs: r.wardrobe.pairsWith,
         usedHistory: history.length,
       }, { itemKey: ctx.itemKey, brand: ctx.brand }).catch(() => {});
       if (!live) return;

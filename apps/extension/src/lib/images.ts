@@ -49,3 +49,18 @@ export async function hashBlob(blob: Blob): Promise<string> {
   const d = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+/** Crops a photo to a box (fractions 0..1) with a little room around it. */
+export async function cropTo(blob: Blob, box: [number, number, number, number], pad = 0.06): Promise<Blob> {
+  const bmp = await createImageBitmap(blob);
+  const [x0, y0, x1, y1] = box;
+  const w = x1 - x0, h = y1 - y0;
+  const L = Math.max(0, x0 - w * pad), T = Math.max(0, y0 - h * pad * 0.6);
+  const R = Math.min(1, x1 + w * pad), B = Math.min(1, y1 + h * pad * 0.6);
+  const sx = Math.round(L * bmp.width), sy = Math.round(T * bmp.height);
+  const sw = Math.max(1, Math.round((R - L) * bmp.width)), sh = Math.max(1, Math.round((B - T) * bmp.height));
+  const c = new OffscreenCanvas(sw, sh);
+  c.getContext("2d")!.drawImage(bmp, sx, sy, sw, sh, 0, 0, sw, sh);
+  bmp.close?.();
+  return c.convertToBlob({ type: "image/jpeg", quality: 0.9 });
+}

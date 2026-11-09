@@ -233,6 +233,12 @@ export interface RatedEntry {
   price?: number;
   currency?: string;
   hex?: string;
+  category?: string;
+  colors?: Array<{ name: string; hex: string }>;
+  formality?: number;
+  /** wardrobe ids the AI chose to wear it with */
+  pairs: string[];
+  hidden?: boolean;
   ts: string;
   /** how many times it was rated */
   times: number;
@@ -246,12 +252,14 @@ export async function listRated(): Promise<RatedEntry[]> {
   const map = new Map<string, RatedEntry>();
   const bought = new Set<string>();
   const fb = new Map<string, RatedEntry["feedback"]>();
+  const hidden = new Set<string>();
   for (const e of events) {
     const p = e.payload ?? {};
     const key = p.itemKey ?? e.refs?.itemKey;
     if (!key) continue;
     if (e.type === "bought") bought.add(key);
     if (e.type === "rating_feedback") fb.set(key, p.verdict);
+    if (e.type === "dismissed" && p.list === "searched") hidden.add(key);
     if (e.type !== "item_rated") continue;
     const prev = map.get(key);
     map.set(key, {
@@ -266,12 +274,17 @@ export async function listRated(): Promise<RatedEntry[]> {
       price: p.price,
       currency: p.currency,
       hex: p.colors?.[0]?.hex,
+      category: p.category ?? prev?.category,
+      colors: p.colors ?? prev?.colors,
+      formality: p.formality ?? prev?.formality,
+      pairs: Array.isArray(p.pairs) ? p.pairs : prev?.pairs ?? [],
       ts: e.ts,
       times: (prev?.times ?? 0) + 1,
       bought: false,
     });
   }
   return [...map.values()]
+    .filter((r) => !hidden.has(r.itemKey))
     .map((r) => ({ ...r, bought: bought.has(r.itemKey), feedback: fb.get(r.itemKey) }))
     .sort((a, b) => b.ts.localeCompare(a.ts));
 }

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Zero Q",
   "short_name": "Zero Q",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Your wardrobe, on every store. Scores made for you, pairs, duplicate warnings, try-on, and a memory that learns what you really buy.",
   "minimum_chrome_version": "116",
   "icons": {
