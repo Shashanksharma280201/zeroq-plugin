@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 (2026-11-09)
+
+- Fixed: the panel could go blank after updating to 0.3.0. The new top bar draws your character on every screen, and a profile saved by an early version (or a cut-off AI answer) without character data crashed it. Profiles are now filled in with safe defaults when they load.
+- New: if any screen ever crashes, Zero Q shows "Something went wrong" with Reload and Copy details, never an empty panel.
+
 ## 0.3.0 (2026-11-09)
 
 - **Two tabs.** *Searched*: everything you asked Zero Q about, each shown as a picture equation, the item = the best outfit from your wardrobe (✦ when your stylist picked it). *Wardrobe*: everything you own, each with its best outfit, plus an Outfits view for today. Tap a row for the outfit laid out, with Open, I bought it (moves it to Wardrobe) and Remove.

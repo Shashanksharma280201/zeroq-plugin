@@ -80,7 +80,55 @@ export interface Rating extends ScoreResult {
 
 export async function getProfile(): Promise<StyleProfile | null> {
   const s = await chrome.storage.local.get("profile");
-  return (s.profile as StyleProfile) ?? null;
+  return normalizeProfile(s.profile);
+}
+
+export const DEFAULT_AVATAR: Avatar = {
+  skin: "#c69c7d", hair: "#2a211c", hairStyle: "short", facialHair: "none", glasses: false, build: "average", height: "average",
+  top: "#2b3550", bottom: "#c9b99a", shoes: "#f2f0ea", topStyle: "tee", bottomStyle: "trousers",
+};
+
+const HEXRE = /^#[0-9a-f]{6}$/i;
+const oneOf = <T extends string>(v: unknown, ok: readonly T[], d: T): T => (ok.includes(v as T) ? (v as T) : d);
+
+/**
+ * Profiles saved by older versions, cut-off AI answers or another browser can
+ * miss fields. Fill every gap with a safe default so no screen can crash on it.
+ */
+export function normalizeProfile(raw: any): StyleProfile | null {
+  if (!raw || typeof raw !== "object") return null;
+  const av = raw.avatar && typeof raw.avatar === "object" ? raw.avatar : {};
+  const hex = (v: unknown, d: string) => (typeof v === "string" && HEXRE.test(v) ? v : d);
+  const swatches = (v: unknown) => (Array.isArray(v) ? v.filter((x: any) => x && typeof x.hex === "string").map((x: any) => ({ name: String(x.name ?? ""), hex: hex(x.hex, "#999999") })) : []);
+  const strings = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
+  const range = Array.isArray(raw.formality?.range) && raw.formality.range.length === 2 ? raw.formality.range.map(Number) : [2, 4];
+  return {
+    ...raw,
+    styleName: String(raw.styleName ?? "Your style"),
+    summary: String(raw.summary ?? ""),
+    styleWords: strings(raw.styleWords),
+    palette: { best: swatches(raw.palette?.best), avoid: swatches(raw.palette?.avoid) },
+    likes: strings(raw.likes),
+    dislikes: strings(raw.dislikes),
+    flatters: strings(raw.flatters),
+    fits: strings(raw.fits),
+    formality: { usual: Number(raw.formality?.usual) || 3, range: range as [number, number] },
+    answers: { shopFor: strings(raw.answers?.shopFor), useFrame: raw.answers?.useFrame !== false, ...raw.answers, ...(Array.isArray(raw.answers?.shopFor) ? {} : { shopFor: [] }) },
+    avatar: {
+      skin: hex(av.skin, DEFAULT_AVATAR.skin),
+      hair: hex(av.hair, DEFAULT_AVATAR.hair),
+      hairStyle: oneOf(av.hairStyle, ["buzz", "short", "wavy", "long", "bun", "curly", "covered"] as const, DEFAULT_AVATAR.hairStyle),
+      facialHair: oneOf(av.facialHair, ["none", "stubble", "beard"] as const, "none"),
+      glasses: !!av.glasses,
+      build: oneOf(av.build, ["slim", "average", "athletic", "broad", "curvy"] as const, "average"),
+      height: oneOf(av.height, ["short", "average", "tall"] as const, "average"),
+      top: hex(av.top, DEFAULT_AVATAR.top),
+      bottom: hex(av.bottom, DEFAULT_AVATAR.bottom),
+      shoes: hex(av.shoes, DEFAULT_AVATAR.shoes),
+      topStyle: oneOf(av.topStyle, ["tee", "shirt", "kurta", "jacket"] as const, "tee"),
+      bottomStyle: oneOf(av.bottomStyle, ["trousers", "jeans", "skirt", "shorts"] as const, "trousers"),
+    },
+  } as StyleProfile;
 }
 export async function saveProfile(p: StyleProfile): Promise<void> {
   p = { ...p, updatedAt: new Date().toISOString() };
@@ -94,7 +142,7 @@ export async function clearProfile(): Promise<void> {
 }
 export function onProfile(fn: (p: StyleProfile | null) => void): () => void {
   const h = (c: Record<string, chrome.storage.StorageChange>, area: string) => {
-    if (area === "local" && "profile" in c) fn((c.profile.newValue as StyleProfile) ?? null);
+    if (area === "local" && "profile" in c) fn(normalizeProfile(c.profile.newValue));
   };
   chrome.storage.onChanged.addListener(h);
   return () => chrome.storage.onChanged.removeListener(h);
