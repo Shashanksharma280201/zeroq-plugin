@@ -3,6 +3,7 @@ import { getBlob, getMeta, open, setMeta } from "./db.ts";
 import { blobRefs, replay, type BlobRef } from "./replay.ts";
 import { deviceId, getEvents, putEvents, rebuildMemory } from "./events.ts";
 import { hashBlob } from "./images.ts";
+import { googleRedirect } from "./platform.ts";
 import { getSettings, type Settings } from "./settings.ts";
 
 /**
@@ -53,7 +54,7 @@ export function onSyncState(fn: (s: SyncState) => void): () => void {
 // ---------- sign in ----------
 
 /** The redirect URL to paste into your Google Cloud OAuth client. */
-export const redirectUrl = () => chrome.identity.getRedirectURL();
+export const redirectUrl = () => googleRedirect();
 
 export class NeedsSignIn extends Error {
   constructor() {

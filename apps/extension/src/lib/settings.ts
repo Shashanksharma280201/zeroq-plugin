@@ -30,6 +30,8 @@ export interface Settings {
   driveSync: boolean;
   /** OAuth client id (Web application) from Google Cloud */
   driveClientId: string;
+  /** you have given Zero Q permission to open your Google Photos picker */
+  photosConnected: boolean;
   /** Encrypts everything before it reaches Drive. Never synced. */
   drivePassphrase: string;
   /** Where your data is kept besides the browser: asked once on first open */
@@ -51,6 +53,7 @@ export const DEFAULTS: Settings = {
   stretchPicks: true,
   driveSync: false,
   driveClientId: "",
+  photosConnected: false,
   drivePassphrase: "",
   dataHome: "unset",
 };

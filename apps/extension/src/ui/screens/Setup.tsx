@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { findPeople, type PersonBox } from "../../lib/ai.ts";
 import { canPickFolder, canSaveToDownloads, chooseFolder, saveToDownloads } from "../../lib/folder.ts";
-import { googlePhotosAvailable, pickFromGooglePhotos } from "../../lib/gphotos.ts";
+import { pickFromGooglePhotos } from "../../lib/gphotos.ts";
+import { GooglePhotosSheet, usePhotosStatus } from "../components/GooglePhotos.tsx";
 import { cropTo } from "../../lib/images.ts";
 import { buildProfile, getOutfitPhotos, saveOutfitPhotos, saveProfile, type Answers, type StyleProfile } from "../../lib/profile.ts";
 import { aiReady, setSettings, type AIProvider } from "../../lib/settings.ts";
@@ -200,10 +201,10 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setP
   const upload = useRef<HTMLInputElement>(null);
   const group = useRef<HTMLInputElement>(null);
   const hud = useHud();
-  const [gp, setGp] = useState<boolean | null>(null);
+  const gp = usePhotosStatus();
+  const [askGoogle, setAskGoogle] = useState(false);
   const [gpBusy, setGpBusy] = useState<string | null>(null);
   const [who, setWho] = useState<Shot | null>(null);
-  useEffect(() => { googlePhotosAvailable().then(setGp); }, []);
 
   const patch = (url: string, f: (s: Shot) => Shot) => setPhotos((ps) => ps.map((x) => (x.url === url ? f(x) : x)));
   /** Looks for people; more than one means you choose yourself. */
@@ -263,9 +264,9 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setP
       <input ref={group} type="file" accept="image/*" multiple hidden onChange={(e) => { e.target.files && add(Array.from(e.target.files), "group"); e.target.value = ""; }} />
 
       <div className="sources" role="group" aria-label="Add photos from">
-        {gp !== false && (
-          <button className="source" onClick={fromGoogle} disabled={!!gpBusy || n >= MAX || gp === null}>
-            <span className="src-ic g"><Icon.photos /></span><b>Google Photos</b><small>{gpBusy ?? "Pick from your library"}</small>
+        {gp !== "unsupported" && (
+          <button className="source" onClick={() => (gp === "connected" ? fromGoogle() : setAskGoogle(true))} disabled={!!gpBusy || n >= MAX || gp === null}>
+            <span className="src-ic g"><Icon.photos /></span><b>Google Photos</b><small>{gpBusy ?? (gp === "connected" ? "Pick from your library" : gp === "setup" ? "Not switched on yet" : "Connect, then pick")}</small>
           </button>
         )}
         <button className="source" onClick={() => upload.current?.click()} disabled={n >= MAX}>
@@ -275,10 +276,6 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setP
           <span className="src-ic"><Icon.group /></span><b>A group photo</b><small>Tap yourself, we crop</small>
         </button>
       </div>
-      {gp === false && typeof chrome.identity?.launchWebAuthFlow === "function" && (
-        <p className="hint">Google Photos needs a Google client ID in Settings while Zero Q is in testing.</p>
-      )}
-
       <div className="shots" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); add(Array.from(e.dataTransfer.files), "upload"); }}>
         {photos.map((x, i) => (
           <div className={`shot ${x.state ?? "ok"}`} key={x.url}>
@@ -299,6 +296,7 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setP
         <b>{n}<span className="faint"> / {MAX}</span></b>
       </div>
       </div>
+      <GooglePhotosSheet open={askGoogle} onClose={() => setAskGoogle(false)} onConnected={() => { setAskGoogle(false); fromGoogle(); }} />
       <WhoSheet shot={who} onClose={() => setWho(null)} onPick={async (i) => {
         const x = who!;
         setWho(null);

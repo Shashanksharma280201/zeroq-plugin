@@ -1199,3 +1199,17 @@ details.why .reading { padding: 16px 4px 0; }
 @media (prefers-reduced-motion: reduce) { .vcard.buy, .vcard.wait, .vcard.skip { animation: none; } }
 .palette-band { height: 14px; border-radius: var(--r-pill); margin: 4px 4px 20px; }
 .su-opt span span { overflow-wrap: anywhere; word-break: normal; }
+
+/* Google Photos: asking before Google asks */
+.gp { display: grid; gap: 16px; padding-bottom: 8px; }
+.gp-title { margin: 0; font: 300 30px/1.1 var(--serif); }
+.gp-lead { margin: 0; font-size: 15px; line-height: 1.5; color: var(--muted); }
+.gp-steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+.gp-steps li { display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: start; }
+.gp-ic { width: 44px; height: 44px; border-radius: 50%; background: var(--lav); color: var(--lav-ink); display: grid; place-items: center; }
+.gp-ic svg { width: 22px; height: 22px; }
+.gp-steps b { display: block; font: 600 15px/1.4 var(--font); }
+.gp-steps p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.setup-list { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; line-height: 1.5; }
+.setup-list code, code.copy { display: block; margin-top: 6px; padding: 10px 12px; border-radius: 12px; background: var(--surface); font: 12px/1.4 ui-monospace, Menlo, monospace; overflow-wrap: anywhere; cursor: copy; }
+.gp .su-field input { background: var(--surface); }

@@ -48,3 +48,15 @@ export async function openTab(tabId?: number): Promise<void> {
     await chrome.tabs.create({ url, index: undefined });
   }
 }
+
+/**
+ * Where Google sends you back after sign-in. Chrome and its relatives use the
+ * extension's own chromiumapp.org address. Google refuses Firefox's default
+ * address (it cannot verify the domain), so Firefox uses the loopback address
+ * it offers for exactly this.
+ */
+export function googleRedirect(): string {
+  const u: string = g.chrome.identity.getRedirectURL();
+  const m = u.match(/^https:\/\/([0-9a-f]+)\.extensions\.allizom\.org\//);
+  return m ? `http://127.0.0.1/mozoauth2/${m[1]}` : u;
+}

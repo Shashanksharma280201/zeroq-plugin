@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1 (2026-11-10)
+
+- Google Photos by permission. The option is always shown in setup. Zero Q first says what Google will ask and what it will see, then opens Google's permission screen, then the Google Photos picker. It gets only the photos you pick.
+- Once connected it does not ask again: the permission is renewed quietly. Me has a Google Photos section to connect or disconnect; disconnecting revokes the permission at Google.
+- Firefox now uses the redirect address Google accepts, so Google sign-in (Photos and Drive) can work there.
+- Zero Q can carry its own Google client ID (apps/extension/google.json). When it is filled in, the Chrome build gets a fixed extension ID so one registration works for every user. Until then nothing changes for current installs. Steps in docs/google-photos.md.
+
 ## 0.5.0 (2026-11-10)
 
 - New look, calm and soft: a milk ground with sage, butter, blush and lavender tints, Fraunces for answers and Figtree for everything else. Seven type sizes, none under 12. Pills for everything you tap. Light and dark.

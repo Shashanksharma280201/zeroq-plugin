@@ -21,9 +21,20 @@ const OUT = { chrome: "dist", firefox: "dist-firefox", safari: "dist-safari" };
 
 const base = JSON.parse(readFileSync("static/manifest.json", "utf8"));
 
+/**
+ * Google sign-in (Google Photos, Drive). google.json holds Zero Q's own OAuth
+ * client ID. Once it is filled in, the Chrome build gets a fixed key, so every
+ * install has the same extension ID and the one redirect address registered
+ * with Google works for everyone. ZQ_GOOGLE_CLIENT_ID overrides the file.
+ * See docs/google-photos.md.
+ */
+const google = JSON.parse(readFileSync("google.json", "utf8"));
+const googleClientId = (process.env.ZQ_GOOGLE_CLIENT_ID ?? google.clientId ?? "").trim();
+
 function manifestFor(target) {
   const m = structuredClone(base);
   const drop = (list, ...names) => list.filter((p) => !names.includes(p));
+  if (target === "chrome" && googleClientId && google.chromeKey) m.key = google.chromeKey;
   if (target === "firefox") {
     delete m.side_panel;
     delete m.minimum_chrome_version;
@@ -62,7 +73,7 @@ async function build(target) {
     sourcemap: watch ? "inline" : false,
     loader: { ".css": "css" },
     external: ["/fonts/*"],
-    define: { "process.env.NODE_ENV": watch ? '"development"' : '"production"', __TARGET__: JSON.stringify(target) },
+    define: { "process.env.NODE_ENV": watch ? '"development"' : '"production"', __TARGET__: JSON.stringify(target), __ZQ_GOOGLE_CLIENT_ID__: JSON.stringify(googleClientId) },
     logLevel: "info",
   });
   if (watch) await ctx.watch();
