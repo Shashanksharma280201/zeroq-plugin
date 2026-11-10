@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { bestOutfit, colourNames, guessKind, type Category, type WardrobeItem } from "@zq/core";
+import { DECISION_WORD, bestOutfit, colourNames, decisionFor, guessKind, type Category, type WardrobeItem } from "@zq/core";
 import { addItem, getBlob } from "../../lib/db.ts";
 import { listRated, logEvent, onEvents, type RatedEntry } from "../../lib/events.ts";
 import { OutfitBoard, OutfitRow, ScoreDot, scoreTone } from "../components/Outfit.tsx";
 import { Icon, Page, Sheet, money, useBlobUrl, useHud } from "../components/kit.tsx";
 
 type Filter = "all" | "good" | "bought";
-const FILTERS: Array<[Filter, string]> = [["all", "All"], ["good", "75+"], ["bought", "Bought"]];
+const FILTERS: Array<[Filter, string]> = [["all", "All"], ["good", "Worth buying"], ["bought", "Bought"]];
 
 /** Everything you have asked Zero Q about, each with the best outfit from your wardrobe. */
 export function Searched({ wardrobe, top }: { wardrobe: WardrobeItem[]; top?: React.ReactNode }) {
@@ -115,7 +115,7 @@ function SearchedSheet({ r, wardrobe, onClose }: { r: RatedEntry | null; wardrob
   return (
     <Sheet open={!!r} onClose={onClose} title={r.name}>
       <div className="detail">
-        <div className={`detail-score ${scoreTone(r.score)}`}><b>{r.score}</b><span>{r.score >= 75 ? "Buy it" : r.score >= 55 ? "Worth a look" : r.score >= 40 ? "Think twice" : "Skip it"}</span></div>
+        <div className={`detail-score ${scoreTone(r.score)}`}><b>{r.score}</b><span>{DECISION_WORD[decisionFor(r.score)]}</span></div>
         <OutfitBoard main={<Photo r={r} big />} pieces={o?.pieces ?? []} />
         {o && o.fromAI.length > 0 && <p className="hint center">✦ chosen by your stylist</p>}
         <div className="detail-meta">

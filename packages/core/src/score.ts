@@ -31,6 +31,9 @@ export const CAPS = {
 } as const;
 
 export const BUDGET_PENALTY = 10;
+export const BUYERS_MIN = 20;
+export const BUYERS_PENALTY = 6;
+export const BUYERS_BONUS = 3;
 
 export type PartKey = keyof typeof WEIGHTS;
 
@@ -67,6 +70,8 @@ export interface ItemFacts {
   dislikesMatched: number[];
   never: boolean;
   price?: number;
+  /** what buyers on the store say: average out of 5 and how many rated */
+  buyers?: { rating: number; count: number };
 }
 
 /** What the score needs to know about your wardrobe. */
@@ -211,6 +216,12 @@ export function scoreItem(item: ItemFacts, profile: ScoreProfile, wardrobe: Ward
   const adjustments: ScoreResult["adjustments"] = [];
   const max = budgetMax(profile.budget);
   if (max && item.price && item.price > max * 1.5) adjustments.push({ reason: `Well over your usual ${profile.budget}`, delta: -BUDGET_PENALTY });
+  // Buyers' ratings count only when enough people have rated, and only a little.
+  const b = item.buyers;
+  if (b && b.count >= BUYERS_MIN) {
+    if (b.rating < 3.5) adjustments.push({ reason: `Buyers rate it ${b.rating.toFixed(1)} of 5`, delta: -BUYERS_PENALTY });
+    else if (b.rating >= 4.4) adjustments.push({ reason: `Buyers rate it ${b.rating.toFixed(1)} of 5`, delta: BUYERS_BONUS });
+  }
 
   const caps: ScoreResult["caps"] = [];
   if (item.never) caps.push({ reason: "On your never-wear list", cap: CAPS.never });

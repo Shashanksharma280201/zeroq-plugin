@@ -49,8 +49,35 @@ export interface DetectedProduct {
   currency?: string;
   description?: string;
   color?: string;
+  /** Everything else the page says about it: sizes, fabric, reviews, the full price story */
+  details?: ProductDetails;
   /** How we found it, useful for debugging odd sites */
   via: "json-ld" | "microdata" | "open-graph";
+}
+
+/** What a product page says beyond name, price and photo. Every field is optional: stores differ. */
+export interface ProductDetails {
+  /** the price before the discount */
+  mrp?: number;
+  discountPct?: number;
+  /** average buyer rating out of 5 */
+  rating?: number;
+  reviewCount?: number;
+  /** a few buyer reviews, trimmed */
+  reviews?: string[];
+  sizes?: Array<{ label: string; available: boolean }>;
+  colours?: string[];
+  material?: string;
+  pattern?: string;
+  fit?: string;
+  care?: string;
+  /** the store's own category path, e.g. "Men > Shirts > Casual" */
+  category?: string;
+  inStock?: boolean;
+  /** "Fabric: Cotton" style rows from the page */
+  specs?: Array<[string, string]>;
+  /** the product section's own words, for the AI to read */
+  text?: string;
 }
 
 /** A product with our best guess of what it is. */

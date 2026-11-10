@@ -1,6 +1,6 @@
 import {
-  CATEGORIES, SHAPE_ANCHORS, STYLE_ANCHORS, describeEvent, guessColors, guessKind, memoryBlock, scoreItem, wardrobeFacts,
-  type Category, type ItemFacts, type PartKey, type ScoreProfile, type ScoreResult, type TasteMemory, type WardrobeFacts, type WardrobeItem, type ZQEvent,
+  CATEGORIES, SHAPE_ANCHORS, STYLE_ANCHORS, describeEvent, detailsBlock, guessColors, guessKind, memoryBlock, scoreItem, wardrobeFacts,
+  type Category, type ItemFacts, type MySizes, type PageRead, type PartKey, type ProductDetails, type ScoreProfile, type ScoreResult, type TasteMemory, type WardrobeFacts, type WardrobeItem, type ZQEvent,
 } from "@zq/core";
 import { logEvent, outfitPhotoHashes } from "./events.ts";
 import { askAI, imagePart, parseJson, type Content } from "./ai.ts";
@@ -60,6 +60,10 @@ export interface Answers {
   budget?: string;
   never?: string;
   useFrame: boolean;
+  /** looks you tapped as yours during setup */
+  looks?: string[];
+  /** your usual sizes, so Zero Q can say whether yours is in stock */
+  sizes?: MySizes;
 }
 
 /** A rating: facts from the AI, score from the formula in @zq/core/score.ts. */
@@ -74,6 +78,19 @@ export interface Rating extends ScoreResult {
   /** what the formula was given, kept so the score can be re-run with your soft limits relaxed */
   facts: ItemFacts;
   wf: WardrobeFacts;
+  /** what the AI read off the product page: fabric, sizing, reviews, value */
+  page?: PageRead;
+}
+
+/** What the store's page says about the product being rated. */
+export interface PageProduct {
+  name?: string;
+  brand?: string;
+  price?: number;
+  currency?: string;
+  description?: string;
+  color?: string;
+  details?: ProductDetails;
 }
 
 // ---------- storage ----------
@@ -177,7 +194,7 @@ export async function buildProfile(photos: Blob[], answers: Answers): Promise<St
   content.push({
     type: "text",
     text: `These are my ${photos.length} favourite outfits.
-I mostly shop for: ${answers.shopFor.join(", ") || "not said"}. Usual budget per piece: ${answers.budget || "not said"}. I never wear: ${answers.never || "not said"}.
+I mostly shop for: ${answers.shopFor.join(", ") || "not said"}. Usual budget per piece: ${answers.budget || "not said"}. I never wear: ${answers.never || "not said"}.${answers.looks?.length ? ` Looks I picked as mine: ${answers.looks.join(", ")}.` : ""}
 
 Return JSON with exactly these keys:
 {
@@ -244,7 +261,7 @@ export function normaliseProfile(r: any, answers: Answers, photoCount: number): 
 
 // ---------- rating any item ----------
 
-const RATER = `You are this person's personal stylist. You do not give scores. You report facts about the item and answer fixed questions about how it relates to this person, honestly and literally, so a formula can score it. Never comment on fit or size; that is decided in a trial room. Plain words, no emoji. Reply with JSON only.`;
+const RATER = `You are this person's personal stylist. You do not give scores. You report facts about the item and answer fixed questions about how it relates to this person, honestly and literally, so a formula can score it. Do not judge how it will fit my body; a trial room decides that. You may pass on what the store and its buyers say about sizing. Plain words, no emoji. Reply with JSON only.`;
 
 export function scoreProfile(p: StyleProfile): ScoreProfile {
   return {
@@ -270,7 +287,15 @@ NEVER WEAR: ${p.answers.never || "-"}
 ${frame}`;
 }
 
-const ITEM_SCHEMA = (useFrame: boolean) => `{"name": short name, "category": top|bottom|one-piece|outerwear|footwear|accessory,
+const PAGE_SCHEMA = `,
+ "page": {"fabric": the fabric in a few words or null, "feel": one short phrase on how it wears (weight, breathability, stretch) or null,
+  "fitType": "slim"|"regular"|"relaxed"|"oversized"|null, "season": "hot"|"mild"|"cold"|"all", "care": a few words or null,
+  "quality": 1-5 from the fabric, the construction details and buyer reviews, null if there is nothing to go on,
+  "reviewSummary": one sentence on what buyers say, null if there are no reviews,
+  "sizeAdvice": one sentence from the store's sizing notes and reviews (for example that it runs small), null if nothing is said,
+  "valueNote": one sentence on whether the price is fair for what it is}`;
+
+const ITEM_SCHEMA = (useFrame: boolean, page = false) => `{"name": short name, "category": top|bottom|one-piece|outerwear|footwear|accessory,
  "colors": up to 3 [{"name": plain colour name, "hex": "#rrggbb" of the actual fabric colour}], main colour first,
  "formality": 1 lounge to 5 formal,
  "styleFit": 1-5 where ${STYLE_ANCHORS},
@@ -279,7 +304,7 @@ const ITEM_SCHEMA = (useFrame: boolean) => `{"name": short name, "category": top
  "never": true only if it is something on my NEVER WEAR list,
  "notes": {"colour": one sentence on this colour against my palette, "shape": one sentence on the cut for me, "style": one sentence on my taste},
  "pairsWith": up to 3 ids from my wardrobe it goes with, "wardrobeNote": one sentence,
- "occasions": up to 3 short occasions, "watchOut": optional one sentence}`;
+ "occasions": up to 3 short occasions, "watchOut": optional one sentence${page ? PAGE_SCHEMA : ""}}`;
 
 /** Your history for the AI: the taste memory plus the past events most like this item. */
 function historyBlock(m: TasteMemory | null | undefined, p: StyleProfile, history?: ZQEvent[]): string {
@@ -302,6 +327,8 @@ export async function rateItem(opts: {
   pageUrl?: string;
   hint?: string;
   price?: number;
+  /** everything the product page says, when the item is the product on the page */
+  product?: PageProduct;
   profile: StyleProfile;
   wardrobe: WardrobeItem[];
   memory?: TasteMemory | null;
@@ -310,6 +337,7 @@ export async function rateItem(opts: {
 }): Promise<Rating> {
   const p = opts.profile;
   const mem = historyBlock(opts.memory, p, opts.history);
+  const page = opts.product ? detailsBlock(opts.product) : "";
   const text = await askAI(
     RATER,
     [
@@ -319,17 +347,18 @@ export async function rateItem(opts: {
         type: "text",
         text: `The item is the main clothing piece in ${opts.angles?.length ? `these ${opts.angles.length + 1} images. They show the same product from different angles: use all of them for colour, fabric, cut and details` : "this image"}${opts.hint ? ` (${opts.hint})` : ""}. Page: ${opts.pageTitle ?? ""} ${opts.pageUrl ?? ""}
 
+${page ? `\nPRODUCT PAGE (what the store says. Trust it over a guess from the photo for fabric, fit type, sizes and price. Use the photos for colour and cut.)\n${page}\n` : ""}
 ${profileBlock(p)}
 ${mem}
 ${wardrobeBlock(opts.wardrobe)}
 
 Return JSON exactly in this shape:
-${ITEM_SCHEMA(p.answers.useFrame)}`,
+${ITEM_SCHEMA(p.answers.useFrame, !!page)}`,
       },
     ],
-    { maxTokens: 1600, json: true, temperature: 0 },
+    { maxTokens: page ? 2400 : 1600, json: true, temperature: 0 },
   );
-  return toRating(parseJson<any>(text), p, opts.wardrobe, opts.price);
+  return toRating(parseJson<any>(text), p, opts.wardrobe, opts.price, [], opts.product?.details);
 }
 
 /**
@@ -369,7 +398,7 @@ ${ITEM_SCHEMA(p.answers.useFrame)}`,
 
 
 /** AI facts in, formula out. */
-export function toRating(r: any, p: StyleProfile, wardrobe: WardrobeItem[], price?: number, extra: WardrobeItem[] = []): Rating {
+export function toRating(r: any, p: StyleProfile, wardrobe: WardrobeItem[], price?: number, extra: WardrobeItem[] = [], details?: ProductDetails): Rating {
   const colors: Swatch[] = (Array.isArray(r.colors) ? r.colors : r.item?.colors ?? [])
     .filter((c: any) => c && HEX.test(c.hex))
     .slice(0, 3)
@@ -388,6 +417,7 @@ export function toRating(r: any, p: StyleProfile, wardrobe: WardrobeItem[], pric
     dislikesMatched: [...new Set(idx(r.dislikesMatched, p.dislikes.length))],
     never: r.never === true,
     price,
+    buyers: details?.rating && details.reviewCount ? { rating: details.rating, count: details.reviewCount } : undefined,
   };
   // Wardrobe facts come from the same matcher the rest of Zero Q uses.
   const basic = guessColors(colors.map((c) => c.name).join(" "));
@@ -413,5 +443,18 @@ export function toRating(r: any, p: StyleProfile, wardrobe: WardrobeItem[], pric
     watchOut: r.watchOut ? String(r.watchOut) : undefined,
     facts,
     wf,
+    page: readPage(r.page),
   };
+}
+
+function readPage(v: any): PageRead | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const t = (x: any, n = 160) => (typeof x === "string" && x.trim() && !/^(null|none|n\/a|unknown)$/i.test(x.trim()) ? x.trim().slice(0, n) : undefined);
+  const q = Number(v.quality);
+  const page: PageRead = {
+    fabric: t(v.fabric, 60), feel: t(v.feel, 80), fitType: t(v.fitType, 20), season: t(v.season, 10), care: t(v.care, 60),
+    quality: Number.isFinite(q) && q >= 1 && q <= 5 ? Math.round(q) : undefined,
+    reviewSummary: t(v.reviewSummary), sizeAdvice: t(v.sizeAdvice), valueNote: t(v.valueNote),
+  };
+  return Object.values(page).some((x) => x != null) ? page : undefined;
 }

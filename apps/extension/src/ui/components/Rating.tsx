@@ -1,12 +1,11 @@
 import { aiReady, PROVIDER_NAME } from "../../lib/settings.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { deltaE, isStretchPick, retrieveEvents, stretchFor, type FeedbackReason, type FeedbackVerdict, type ItemSnapshot, type WardrobeItem } from "@zq/core";
+import { DECISION_WORD, decisionFor, deltaE, isStretchPick, mySizeFor, pageFacts, quickFacts, retrieveEvents, stretchFor, type Decision, type FeedbackReason, type FeedbackVerdict, type ItemSnapshot, type ProductDetails, type WardrobeItem } from "@zq/core";
 import { getMemory, listEvents, logEvent } from "../../lib/events.ts";
 import { downscale, hashBlob, srcToBlob } from "../../lib/images.ts";
 import { putBlob } from "../../lib/db.ts";
 import type { ToContent } from "../../lib/messages.ts";
-import { rateItem, scoreProfile, type Rating, type StyleProfile } from "../../lib/profile.ts";
-import { Avatar } from "./Avatar.tsx";
+import { rateItem, scoreProfile, type PageProduct, type Rating, type StyleProfile } from "../../lib/profile.ts";
 import { Icon, ItemImg, useMemory, useSettings } from "./kit.tsx";
 
 const cache = new Map<string, Rating>();
@@ -39,8 +38,10 @@ export function snapshotOf(r: Rating, ctx: ItemContext & { url?: string }): Item
 }
 
 export function RatingPanel({
-  src, more, title, url, hint, profile, wardrobe, tabId, onTryOn, goStyle, ctx,
+  src, more, title, url, hint, profile, wardrobe, tabId, onTryOn, goStyle, ctx, product,
 }: {
+  /** everything the product page says, when this is the product on the page */
+  product?: PageProduct;
   src: string; more?: string[]; title: string; url: string; hint?: string; profile: StyleProfile | null | undefined; wardrobe: WardrobeItem[];
   tabId?: number; onTryOn?: (category: string) => void; goStyle: () => void; ctx: ItemContext;
 }) {
@@ -70,7 +71,7 @@ export function RatingPanel({
         Promise.all((more ?? []).filter((u) => u !== src).slice(0, 3).map((u) => srcToBlob(u, 768).catch(() => null))).then((x) => x.filter((b): b is Blob => !!b)),
       ]);
       const history = retrieveEvents(events, { itemKey: ctx.itemKey, brand: ctx.brand, price: ctx.price }, 8);
-      const r = await rateItem({ image, angles, pageTitle: title, pageUrl: url, hint, profile, wardrobe, price: ctx.price, memory, history });
+      const r = await rateItem({ image, angles, pageTitle: title, pageUrl: url, hint, profile, wardrobe, price: ctx.price, memory, history, product });
       cache.set(src, r);
       // A small copy of the photo, so history still shows it after the shop's image link expires.
       const thumbKey = `thumb:${ctx.itemKey}`;
@@ -137,21 +138,18 @@ export function RatingPanel({
 
   if (!rating) {
     return (
-      <>
-        <section className="cfield waiting" aria-busy="true">
-          <div className="field-top">
-            <div className="field-score"><span className="num pulse">00</span></div>
-            <div className="field-avatar"><Avatar a={profile.avatar} mood="think" size={72} /></div>
-          </div>
-          <div className="field-verdict">reading the photo</div>
-          <div className="skeleton" style={{ width: "88%", marginTop: 14 }} />
-          <div className="skeleton" style={{ width: "60%" }} />
-        </section>
-      </>
+      <section className="vcard waiting" aria-busy="true" aria-label="Reading this piece">
+        <div className="v-top">
+          <div className="v-score pulse" aria-hidden>00</div>
+          <div className="v-say"><div className="v-word">Reading it</div><p className="v-line">{product?.details ? "Photos, fabric, sizes and reviews" : "Looking at the photos"}</p></div>
+        </div>
+        <div className="skeleton" style={{ width: "88%" }} />
+        <div className="skeleton" style={{ width: "60%" }} />
+      </section>
     );
   }
 
-  return <RatingResult r={rating} profile={profile} wardrobe={wardrobe} onTryOn={onTryOn} onRedo={() => setNonce((n) => n + 1)} ctx={{ ...ctx, url }} stretchOn={settings.stretchPicks} />;
+  return <RatingResult r={rating} profile={profile} wardrobe={wardrobe} onTryOn={onTryOn} onRedo={() => setNonce((n) => n + 1)} ctx={{ ...ctx, url }} stretchOn={settings.stretchPicks} details={product?.details} />;
 }
 
 /** The colour field's ink: dark on light colours, light on dark ones. */
@@ -163,72 +161,98 @@ export function fieldInk(hex: string): { ink: string; soft: string } {
 
 const PART_SHORT: Record<string, string> = { colour: "colour", style: "style", shape: "shape", wardrobe: "wardrobe", occasion: "occasion" };
 
-function RatingResult({ r, profile, wardrobe, onTryOn, onRedo, ctx, stretchOn }: { r: Rating; profile: StyleProfile; wardrobe: WardrobeItem[]; onTryOn?: (c: string) => void; onRedo: () => void; ctx: ItemContext & { url: string }; stretchOn: boolean }) {
+const FACT_ICON = { style: Icon.tee, colour: Icon.drop, budget: Icon.rupee, pairs: Icon.link } as const;
+const PAGE_ICON = { size: Icon.ruler, fabric: Icon.fabric, reviews: Icon.star, price: Icon.tag } as const;
+export const DecisionMark = ({ d }: { d: Decision }) => (d === "buy" ? <Icon.tick /> : d === "wait" ? <Icon.wave /> : <Icon.cross />);
+
+function RatingResult({ r, profile, wardrobe, onTryOn, onRedo, ctx, stretchOn, details }: { r: Rating; profile: StyleProfile; wardrobe: WardrobeItem[]; onTryOn?: (c: string) => void; onRedo: () => void; ctx: ItemContext & { url: string }; stretchOn: boolean; details?: ProductDetails }) {
   const memory = useMemory();
   const stretch = useMemo(() => (stretchOn && r.facts ? stretchFor(r.facts, scoreProfile(profile), r.wf, memory, r) : null), [r, memory, stretchOn]);
   const pairs = r.wardrobe.pairsWith.map((id) => wardrobe.find((w) => w.id === id)).filter(Boolean) as WardrobeItem[];
   const shown = useCountUp(r.score);
-  const [flood, setFlood] = useState(false);
-  useEffect(() => {
-    const t = requestAnimationFrame(() => setFlood(true));
-    return () => cancelAnimationFrame(t);
-  }, []);
+  const d = decisionFor(r.score);
+  const facts = quickFacts(r, r.wf, ctx.price, profile.answers.budget);
+  const rows = pageFacts(details, r.page, { price: ctx.price, mySize: mySizeFor(r.item.category, profile.answers.sizes) });
   const hex = /^#[0-9a-f]{6}$/i.test(r.item.hex) ? r.item.hex : "#8a8580";
-  const { ink, soft } = fieldInk(hex);
   const capped = r.caps[0] && r.raw + r.adjustments.reduce((s, a) => s + a.delta, 0) > r.caps[0].cap ? r.caps[0] : null;
   return (
     <>
-      <section className={`cfield ${flood ? "flooded" : ""}`} style={{ "--field": hex, "--field-ink": ink, "--field-soft": soft } as any} aria-label={`Score ${r.score} out of 100, ${r.verdict}`}>
-        <div className="field-top">
-          <div className="field-score"><span className="num">{String(shown).padStart(2, "0")}</span><span className="of">/100</span></div>
-          <div className="field-avatar"><Avatar a={profile.avatar} wear={{ category: r.item.category, hex: r.item.hex }} size={72} /></div>
+      <section className={`vcard ${d}`} aria-label={`Score ${r.score} out of 100. ${DECISION_WORD[d]}. ${r.headline}`}>
+        <div className="v-top">
+          <div className="v-score" aria-hidden>{shown}</div>
+          <div className="v-say">
+            <div className="v-word"><DecisionMark d={d} />{DECISION_WORD[d]}</div>
+            <p className="v-line">{r.headline}</p>
+          </div>
         </div>
-        <div className="field-verdict">{r.verdict.toLowerCase()}</div>
-        <p className="field-head">{r.headline}</p>
-        {r.item.color && <div className="field-caption">Read as {r.item.color.toLowerCase()}</div>}
+        {facts.length > 0 && (
+          <ul className="v-facts">
+            {facts.map((f) => {
+              const I = FACT_ICON[f.key];
+              return (
+                <li key={f.key} className={f.good ? "yes" : "no"}>
+                  <span className="v-ic"><I /><i aria-hidden>{f.good ? <Icon.tick /> : <Icon.cross />}</i></span>
+                  <span>{f.label}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       {isStretchPick(stretch) && <StretchNote s={stretch} r={r} ctx={ctx} />}
 
-      <section className="reading">
-        <h2 className="caps">The reading</h2>
-        {r.parts.map((p) => (
-          <div className="lead" key={p.key}>
-            <div className="lead-row"><span>{p.label}</span><i aria-hidden /><b>{p.value}</b></div>
-            {p.key === "colour" && <PaletteFit palette={profile.palette.best} item={r.item.hex} name={r.item.color} />}
-            <p className="lead-note">{r.notes[p.key] ?? p.why}</p>
-          </div>
-        ))}
-        <p className="equation">
-          <b>{r.score}</b> = {r.parts.map((p, i) => <span key={p.key}>{i > 0 && " + "}{Math.round(p.points)} {PART_SHORT[p.key]}</span>)}
-          {r.adjustments.map((a) => <span key={a.reason} className="minus"> {a.delta < 0 ? "−" : "+"} {Math.abs(a.delta)} budget</span>)}
-          {capped && <span className="minus">, capped at {capped.cap}: {capped.reason.toLowerCase()}</span>}
-        </p>
+      {rows.length > 0 && (
+        <section className="pfacts" aria-label="From the product page">
+          {rows.map((row) => {
+            const I = PAGE_ICON[row.key];
+            return (
+              <div key={row.key} className={`pfact ${row.tone}`}>
+                <span className="pf-ic"><I /></span>
+                <div><b>{row.title}</b>{row.text && <p>{row.text}</p>}</div>
+              </div>
+            );
+          })}
+        </section>
+      )}
 
-        {(pairs.length > 0 || r.wardrobe.note) && (
-          <div className="lead">
-            <div className="lead-row"><span>Wear it with</span><i aria-hidden /><b>{pairs.length || ""}</b></div>
-            {pairs.length > 0 && <div className="rc-thumbs">{pairs.map((i) => <ItemImg key={i.id} item={i} />)}</div>}
-            {r.wardrobe.note && <p className="lead-note">{r.wardrobe.note}</p>}
-          </div>
-        )}
-        {r.occasions.length > 0 && (
-          <div className="lead">
-            <div className="lead-row"><span>Wear it to</span><i aria-hidden /><b /></div>
-            <p className="lead-note">{r.occasions.join(", ")}</p>
-          </div>
-        )}
-        {r.watchOut && <p className="watch">{r.watchOut}</p>}
+      {(pairs.length > 0 || r.wardrobe.note) && (
+        <section className="wearwith">
+          <h2 className="sec">Wear it with</h2>
+          {pairs.length > 0 && <div className="rc-thumbs">{pairs.map((i) => <ItemImg key={i.id} item={i} />)}</div>}
+          {r.wardrobe.note && <p className="lead-note">{r.wardrobe.note}</p>}
+        </section>
+      )}
 
-        <Feedback r={r} ctx={ctx} />
-
-        <div className="rc-actions">
-          {onTryOn && /top|bottom|one-piece|outerwear/.test(r.item.category) && (
-            <button className="btn filled small" onClick={() => onTryOn(r.item.category)}><Icon.person /> Try it on</button>
-          )}
-          <button className="btn plain small" onClick={onRedo}>Rate again</button>
+      <details className="why">
+        <summary>Why {r.score}?</summary>
+        <div className="reading">
+          {r.parts.map((p) => (
+            <div className="lead" key={p.key}>
+              <div className="lead-row"><span>{p.label}</span><i aria-hidden /><b>{p.value}</b></div>
+              {p.key === "colour" && <PaletteFit palette={profile.palette.best} item={hex} name={r.item.color} />}
+              <p className="lead-note">{r.notes[p.key] ?? p.why}</p>
+            </div>
+          ))}
+          <p className="equation">
+            <b>{r.score}</b> = {r.parts.map((p, i) => <span key={p.key}>{i > 0 && " + "}{Math.round(p.points)} {PART_SHORT[p.key]}</span>)}
+            {r.adjustments.map((a) => <span key={a.reason} className="minus"> {a.delta < 0 ? "−" : "+"} {Math.abs(a.delta)} ({a.reason.toLowerCase()})</span>)}
+            {capped && <span className="minus">, capped at {capped.cap}: {capped.reason.toLowerCase()}</span>}
+          </p>
+          {r.occasions.length > 0 && <p className="lead-note">Wear it to: {r.occasions.join(", ")}.</p>}
+          {r.watchOut && <p className="watch">{r.watchOut}</p>}
+          {r.item.color && <p className="lead-note">Colour read as {r.item.color.toLowerCase()}.</p>}
         </div>
-      </section>
+      </details>
+
+      <Feedback r={r} ctx={ctx} />
+
+      <div className="rc-actions">
+        {onTryOn && /top|bottom|one-piece|outerwear/.test(r.item.category) && (
+          <button className="btn gray small" onClick={() => onTryOn(r.item.category)}><Icon.person /> Try it on</button>
+        )}
+        <button className="btn plain small" onClick={onRedo}>Rate again</button>
+      </div>
     </>
   );
 }

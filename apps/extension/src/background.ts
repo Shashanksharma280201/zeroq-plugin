@@ -18,7 +18,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     chrome.contextMenus.create({ id: "zq-rate", title: "Rate this for me with Zero Q", contexts: ["image"] });
   });
   if (details.reason === "install") {
-    chrome.tabs.create({ url: chrome.runtime.getURL("app.html#style") });
+    chrome.tabs.create({ url: chrome.runtime.getURL("app.html#setup") });
   }
 });
 

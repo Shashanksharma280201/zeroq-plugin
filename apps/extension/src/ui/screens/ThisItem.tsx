@@ -124,10 +124,10 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
           <button className="btn plain small" style={{ textDecoration: "none" }} onClick={() => { setShowPick(false); if (!product) clearPick(); }}>{product ? "Page item" : "Done"}</button>
         </header>
         <div className="content">
-          <figure className="photo" key={`hero-${pick.src}`}>
-            <img src={pick.src} alt={pick.alt ?? "Picked item"} referrerPolicy="no-referrer" />
-            <figcaption className="caps">{[host, pick.alt].filter(Boolean).join(" / ")}</figcaption>
-          </figure>
+          <Hero key={`hero-${pick.src}`} images={[pick.src, ...(pick.more ?? [])]} name={pick.alt ?? "Picked item"} />
+          <div className="item-head">
+            <div className="grow"><h1 className="item-name">{pick.alt || "The piece you picked"}</h1><span className="meta">{[host, pick.more?.length ? `${Math.min(4, pick.more.length + 1)} photos checked` : null].filter(Boolean).join(", ")}</span></div>
+          </div>
           <RatingPanel key={`rate-${pick.src}`} src={pick.src} more={pick.more} title={pick.title} url={pick.url} hint={pick.alt} profile={profile} wardrobe={wardrobe} tabId={tabId}
             ctx={{ itemKey: itemKeyOf(pick.url, pick.src), brand: host }}
             goStyle={goStyle} onTryOn={(category) => onTryOn({ src: pick.src, category: category as any, name: pick.alt || "this item", hex: cachedRating(pick.src)?.item.hex, itemKey: itemKeyOf(pick.url, pick.src) })} />
@@ -233,16 +233,19 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
       </header>
 
       <div className="content">
-        <figure className="photo" key={p.url}>
-          {p.images[0] ? <img src={p.images[0]} alt={p.name} referrerPolicy="no-referrer" /> : <div className="ph" />}
-          <figcaption className="caps">{[p.brand, p.price != null ? money(p.price, p.currency) : null].filter(Boolean).join(" / ")}</figcaption>
-        </figure>
-        <h1 className="item-title">{p.name}</h1>
+        <Hero key={p.url} images={p.images} name={p.name} />
+        <div className="item-head">
+          <div className="grow">
+            <h1 className="item-name">{p.name}</h1>
+            <span className="meta">{[p.brand || host, p.images.length > 1 ? `${Math.min(4, p.images.length)} photos checked` : null].filter(Boolean).join(", ")}</span>
+          </div>
+          {p.price != null && <b className="item-price">{money(p.price, p.currency)}{p.details?.mrp ? <s>{money(p.details.mrp, p.currency)}</s> : null}</b>}
+        </div>
 
         {scored ? (
           <>
             <RatingPanel key={`rate-${p.images[0]}`} src={p.images[0]} more={p.images.slice(1, 4)} title={p.name} url={p.url} hint={[p.brand, p.name].filter(Boolean).join(" ")} profile={profile} wardrobe={others} tabId={tabId}
-              ctx={ctx} goStyle={goStyle} />
+              ctx={ctx} goStyle={goStyle} product={p} />
             <div className="wcheck">
               <h2 className="section">{owned ? "It's in your wardrobe" : "With your wardrobe"}</h2>
               {others.length > 0 && <span className="meta">{check.pairs.length} {check.pairs.length === 1 ? "pairing" : "pairings"}, {check.duplicates.length} {check.duplicates.length === 1 ? "look-alike" : "look-alikes"}</span>}
@@ -322,6 +325,25 @@ export function ThisItem({ wardrobe, profile, onTryOn, goWardrobe, goStyle }: { 
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** The photo, with the other angles one tap away. Every angle shown here is sent to the AI. */
+function Hero({ images, name }: { images: string[]; name: string }) {
+  const shots = images.slice(0, 4);
+  const [i, setI] = useState(0);
+  if (!shots.length) return <div className="zhero"><div className="ph" /></div>;
+  return (
+    <figure className="zhero">
+      <img src={shots[Math.min(i, shots.length - 1)]} alt={name} referrerPolicy="no-referrer" />
+      {shots.length > 1 && (
+        <div className="zhero-thumbs" role="group" aria-label={`${shots.length} photos of this piece`}>
+          {shots.map((u, k) => (
+            <button key={u} aria-pressed={k === i} aria-label={`Photo ${k + 1}`} onClick={() => setI(k)}><img src={u} alt="" referrerPolicy="no-referrer" /></button>
+          ))}
+        </div>
+      )}
+    </figure>
+  );
+}
 
 function verdictCopy(c: ProductCheck, size: number): { word: string; why: string; tone: string } {
   if (size === 0) return { word: "Start your wardrobe", why: "Add 5 tops and 5 bottoms you own and this card tells you what pairs and what you already have.", tone: "think" };

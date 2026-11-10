@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 (2026-11-10)
+
+- New look, calm and soft: a milk ground with sage, butter, blush and lavender tints, Fraunces for answers and Figtree for everything else. Seven type sizes, none under 12. Pills for everything you tap. Light and dark.
+- Every answer is now one of three: Buy it, Sleep on it, Skip it, with up to four picture facts (your style, your colour, budget, what it goes with) instead of a paragraph. The full reasoning sits behind "Why 91?".
+- Reads the whole product page: sizes and which are sold out, the crossed-out price and discount, fabric, fit, care, buyer rating and reviews, spec rows and the product's own text. All of it goes to the AI with every photo.
+- Better analysis from that data: whether your size is in stock, sizing advice from reviews, fabric feel and season, what buyers say, and whether the price is fair. Buyer ratings nudge the score a little when at least 20 people have rated.
+- New: "New at stores you visit" in Explore. Zero Q goes back to the stores in your history, leaves out everything you have seen or own, and shows new pieces as complete outfits with your wardrobe and the pieces you searched and liked. It takes a minute or two; the result is kept for a day.
+- Setup is now a full page that opens when you install: connect, photos, taste, your label. It asks for the looks you would wear and your usual sizes. The same screens stack in the side panel.
+- The typefaces now include a real rupee sign.
+
 ## 0.4.0 (2026-11-09)
 
 - Every angle: when you rate a product, Zero Q now sends up to 4 photos of it (front, back, worn, detail), not just the one you clicked. On a product page it reads the store's gallery; on a listing it takes the other photos inside that product's card, including the back view stores show on hover.

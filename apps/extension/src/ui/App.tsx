@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { WardrobeItem } from "@zq/core";
-import { HudProvider, Icon, ZQMark, transition, useProfile, useSettings, useWardrobe } from "./components/kit.tsx";
+import { DECISION_WORD, decisionFor, type WardrobeItem } from "@zq/core";
+import { HudProvider, Icon, transition, useProfile, useSettings, useWardrobe } from "./components/kit.tsx";
 import { DataHomeSheet, FolderBanner, useFolderAutosave } from "./components/DataHome.tsx";
 import { Avatar } from "./components/Avatar.tsx";
 import { ScoreDot } from "./components/Outfit.tsx";
@@ -30,7 +30,7 @@ export function App({ surface }: { surface: Surface }) {
   useFolderAutosave(settings);
   const hash = location.hash.slice(1);
   const [tab, setTab] = useState<Tab>(hash === "wardrobe" || hash === "today" ? "wardrobe" : "searched");
-  const [over, setOver] = useState<Over>(hash === "settings" ? "settings" : hash === "style" || hash === "you" ? "me" : null);
+  const [over, setOver] = useState<Over>(hash === "settings" ? "settings" : hash === "style" || hash === "you" || hash === "setup" ? "me" : null);
   const [garment, setGarment] = useState<Garment | null>(null);
   const active = useActiveProduct();
   const go = (t: Tab) => transition(() => (setTab(t), setOver(null)));
@@ -46,6 +46,9 @@ export function App({ surface }: { surface: Surface }) {
     if (profile === null && over == null) setOver("me");
   }, [profile === null]);
 
+  // First run: setup takes the whole page, no bars.
+  const [onboarding, setOnboarding] = useState(false);
+  const setup = over === "me" && (profile === null || onboarding);
   const now = surface === "sidepanel" && over !== "item" ? <NowCard active={active} onOpen={() => open("item")} /> : null;
   // The shop on the open tab, for "new for you at this brand"
   const [origin, setOrigin] = useState<string | undefined>();
@@ -56,12 +59,12 @@ export function App({ surface }: { surface: Surface }) {
 
   return (
     <HudProvider>
-      <div className="shell two">
-        <header className="topbar">
+      <div className={`shell two ${setup ? "setup-mode" : ""}`}>
+        {!setup && <header className="topbar">
           {over && !(over === "me" && !profile) ? (
-            <button className="back" onClick={() => open(over === "settings" && profile ? "me" : null)} aria-label="Back"><Icon.chevronLeft /><span>{over === "settings" && profile ? "You" : tab === "wardrobe" ? "Wardrobe" : "Searched"}</span></button>
+            <button className="back" onClick={() => open(over === "settings" && profile ? "me" : null)} aria-label="Back"><Icon.chevronLeft /><span>{over === "settings" && profile ? "Me" : tab === "wardrobe" ? "Wardrobe" : "Searched"}</span></button>
           ) : (
-            <div className="brand"><ZQMark /> Zero Q</div>
+            <div className="brand">Zero Q</div>
           )}
           <div className="top-actions">
             {over === "me" && profile && <button className="icon-btn" aria-label="Settings" onClick={() => open("settings")}><Icon.gear /></button>}
@@ -71,24 +74,24 @@ export function App({ surface }: { surface: Surface }) {
               </button>
             )}
           </div>
-        </header>
+        </header>}
         <main className="view">
           <FolderBanner />
           {wardrobe == null ? null : over === "item" ? (
             <ThisItem wardrobe={wardrobe} profile={profile} onTryOn={(g) => setGarment(g)} goWardrobe={() => go("wardrobe")} goStyle={() => open("me")} />
           ) : over === "me" ? (
-            <Style />
+            <Style onMode={setOnboarding} />
           ) : over === "settings" ? (
             <Settings wardrobe={wardrobe} surface={surface} />
           ) : over === "explore" ? (
-            <Explore origin={origin} tabId={active.tabId} />
+            <Explore origin={origin} tabId={active.tabId} wardrobe={wardrobe} />
           ) : tab === "searched" ? (
             <Searched wardrobe={wardrobe} top={<>{now}{profile && <ExploreCard onOpen={() => open("explore")} />}</>} />
           ) : (
             <Wardrobe wardrobe={wardrobe} onTryOn={tryItem} top={now} />
           )}
         </main>
-        {over !== "me" || profile ? (
+        {!setup && (over !== "me" || profile) ? (
           <nav className="tabbar2" aria-label="Sections">
             {(["searched", "wardrobe"] as Tab[]).map((t) => (
               <button key={t} className="tab2" aria-current={over == null && tab === t ? "page" : undefined} onClick={() => go(t)}>
@@ -100,7 +103,7 @@ export function App({ surface }: { surface: Surface }) {
         ) : null}
       </div>
       <TryOnSheet garment={garment} onClose={() => setGarment(null)} />
-      <DataHomeSheet />
+      <DataHomeSheet hold={!profile} />
     </HudProvider>
   );
 }
@@ -115,8 +118,8 @@ function NowCard({ active, onOpen }: { active: ReturnType<typeof useActiveProduc
   return (
     <button className="now-card" onClick={onOpen} aria-label={`Now viewing ${name}. ${r ? `Score ${r.score}.` : ""} Open the answer.`}>
       <span className="now-img"><img src={src} alt="" referrerPolicy="no-referrer" />{r && <ScoreDot n={r.score} />}</span>
-      <span className="now-txt"><span className="caps">Now viewing</span><b className="truncate">{name}</b><span className="now-q">{r ? r.verdict : "Should I buy this?"}</span></span>
-      <Icon.chevronRight />
+      <span className="now-txt"><span className="now-k">On this page</span><b className="truncate">{name}</b></span>
+      <span className="now-q">{r ? DECISION_WORD[decisionFor(r.score)] : "Should I buy it?"}</span>
     </button>
   );
 }

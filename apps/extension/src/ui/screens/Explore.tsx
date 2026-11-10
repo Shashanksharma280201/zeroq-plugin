@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import type { Category } from "@zq/core";
+import type { Category, WardrobeItem } from "@zq/core";
+import { DISCOVERY_TTL, cachedDiscovery, discover, type Discovery, type DiscoverProgress, type Look, type SearchedPiece } from "../../lib/discover.ts";
 import { readCatalog } from "../../lib/catalog.ts";
 import { logEvent } from "../../lib/events.ts";
 import { STORES, cachedIdeas, exploreBrand, exploreIdeas, type Idea, type Ideas, type NewPick } from "../../lib/explore.ts";
 import { aiReady } from "../../lib/settings.ts";
 import { ScoreDot } from "../components/Outfit.tsx";
-import { Icon, Page, money, useHud, useSettings } from "../components/kit.tsx";
+import { Icon, ItemImg, Page, money, useBlobUrl, useHud, useSettings } from "../components/kit.tsx";
 
 /**
  * Explore: things that are new for you on purpose, outside your budget,
  * your usual searches and your wardrobe, that still suit you.
  */
-export function Explore({ origin, tabId }: { origin?: string; tabId?: number }) {
+export function Explore({ origin, tabId, wardrobe }: { origin?: string; tabId?: number; wardrobe: WardrobeItem[] }) {
   return (
-    <Page title="Explore" serif subtitle="New for you, still you">
+    <Page title="Try something new" serif subtitle="Picked from what you search and own. New for you, still you.">
+      <VisitedNew wardrobe={wardrobe} tabId={tabId} />
       {origin && <BrandNew origin={origin} tabId={tabId} />}
       <IdeasList />
     </Page>
@@ -28,7 +30,7 @@ export function ExploreCard({ onOpen }: { onOpen: () => void }) {
   return (
     <button className="explore-card" onClick={onOpen}>
       <span className="xc-art" aria-hidden>{(hexes?.length ? hexes : ["#66703e", "#9a4f2c", "#1b6e66", "#c8a24a", "#7a2234"]).map((h, i) => <i key={i} style={{ background: h }} />)}</span>
-      <span className="xc-txt"><b>Explore something new</b><span>Outside your budget, searches and wardrobe</span></span>
+      <span className="xc-txt"><b>Try something new</b><span>New pieces and outfits from stores you visit</span></span>
       <Icon.chevronRight />
     </button>
   );
@@ -72,6 +74,99 @@ function IdeasList() {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * New from the stores in your history, as complete outfits. Reading stores
+ * takes a while, so the last result is kept for a day and shown at once.
+ */
+function VisitedNew({ wardrobe, tabId }: { wardrobe: WardrobeItem[]; tabId?: number }) {
+  const settings = useSettings();
+  const [found, setFound] = useState<Discovery | null | undefined>(undefined);
+  const [prog, setProg] = useState<DiscoverProgress | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const ac = useRef<AbortController | null>(null);
+  useEffect(() => () => ac.current?.abort(), []);
+  const run = async () => {
+    ac.current?.abort();
+    ac.current = new AbortController();
+    setErr(null);
+    setProg({ stage: "reading", done: 0, total: 1 });
+    try {
+      setFound(await discover({ signal: ac.current.signal, onProgress: setProg, useAI: !!settings && aiReady(settings) }));
+    } catch (e: any) {
+      if (e?.name !== "AbortError") setErr(e?.message ?? "Could not read the stores just now.");
+    } finally {
+      setProg(null);
+    }
+  };
+  useEffect(() => {
+    if (!settings) return;
+    cachedDiscovery().then((c) => {
+      setFound(c);
+      // first time, or a day old: go and look without being asked
+      if (!c || Date.now() - Date.parse(c.at) > DISCOVERY_TTL) run();
+    });
+  }, [settings == null]);
+
+  const line = !prog ? "" : prog.stage === "reading" ? `Reading ${prog.store ?? "your stores"} (${prog.done + 1} of ${prog.total})` : prog.stage === "choosing" ? `Looking through ${prog.total} pieces you have not seen` : prog.stage === "scoring" ? `Checking the best ${prog.total} against your style` : "Putting outfits together";
+  const stores = found?.stores.filter((s) => s.ok).map((s) => s.name) ?? [];
+  const open = (l: Look) => {
+    logEvent("suggestion_opened", { list: "explore-visited", name: l.product.name, url: l.product.url, price: l.product.price, category: l.product.category }).catch(() => {});
+    tabId != null ? chrome.tabs.update(tabId, { url: l.product.url }) : chrome.tabs.create({ url: l.product.url });
+  };
+  return (
+    <section aria-labelledby="visited-h" className="visited">
+      <div className="sec-head"><h2 className="section" id="visited-h">New at stores you visit</h2>
+        {!prog && found !== undefined && <button className="btn plain small" onClick={run}>{found ? "Look again" : "Look now"}</button>}</div>
+      {prog && <div className="busy-card" role="status"><i className="spin dark" /><div><b>{line}</b><p>This can take a minute or two. You can keep shopping; the result stays here.</p></div></div>}
+      {err && !prog && <p className="hint">{err}</p>}
+      {found && found.looks.length > 0 && (
+        <>
+          <div className="look-list">{found.looks.map((l) => <LookCard key={l.id} look={l} wardrobe={wardrobe} onOpen={() => open(l)} />)}</div>
+          <p className="hint">From {stores.join(", ")}. None of these are pieces you have already looked at.</p>
+        </>
+      )}
+      {found && !found.looks.length && !prog && !err && (
+        <p className="hint">{stores.length ? `Nothing new at ${stores.join(", ")} completes an outfit for you yet.` : "Zero Q could not read the stores in your history. Brand sites work best; big marketplaces often block this."}</p>
+      )}
+    </section>
+  );
+}
+
+function LookCard({ look, wardrobe, onOpen }: { look: Look; wardrobe: WardrobeItem[]; onOpen: () => void }) {
+  const p = look.product;
+  const own = look.wardrobe.map((id) => wardrobe.find((w) => w.id === id)).filter(Boolean) as WardrobeItem[];
+  const names = [...own.map((w) => w.name), ...look.searched.map((s) => s.name)];
+  return (
+    <article className="look" aria-label={`${p.name} from ${look.store}, score ${look.score}. Wear it with ${names.join(", ")}.`}>
+      <a className="look-main" href={p.url} onClick={(e) => { e.preventDefault(); onOpen(); }}>
+        <img src={p.images[0]} alt="" loading="lazy" referrerPolicy="no-referrer" /><ScoreDot n={look.score} />
+      </a>
+      <div className="look-body">
+        <div className="look-top"><span>{look.store}</span>{p.price != null && <b>{money(p.price, p.currency)}</b>}</div>
+        <h3><a href={p.url} onClick={(e) => { e.preventDefault(); onOpen(); }}>{p.name}</a></h3>
+        <p>{look.why}</p>
+        <div className="look-with">
+          <span>with</span>
+          {own.map((w) => <span className="lw" key={w.id} title={w.name}><ItemImg item={w} /></span>)}
+          {look.searched.map((sp) => <SearchedThumb key={sp.id} p={sp} />)}
+        </div>
+        {look.labels.length > 0 && <div className="look-tags">{look.labels.map((t) => <i key={t}>{t}</i>)}</div>}
+      </div>
+    </article>
+  );
+}
+
+/** A piece you searched and liked, standing in an outfit. The dot marks it as not yours yet. */
+function SearchedThumb({ p }: { p: SearchedPiece }) {
+  const thumb = useBlobUrl(p.thumbKey);
+  const src = thumb ?? p.src;
+  return (
+    <span className="lw searched" title={`${p.name} (you searched this)`}>
+      {src ? <img src={src} alt={`${p.name}, a piece you searched`} referrerPolicy="no-referrer" /> : <i style={{ background: p.hex ?? "var(--surface-2)" }} />}
+    </span>
   );
 }
 

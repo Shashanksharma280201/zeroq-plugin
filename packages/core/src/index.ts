@@ -6,3 +6,5 @@ export * from "./score.ts";
 export * from "./catalog.ts";
 export * from "./memory.ts";
 export * from "./explore.ts";
+export * from "./details.ts";
+export * from "./insight.ts";

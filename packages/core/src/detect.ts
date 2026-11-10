@@ -1,4 +1,5 @@
 import type { DetectedProduct } from "./types.ts";
+import { readDetails } from "./details.ts";
 
 /**
  * Find the product on a shopping page.
@@ -10,7 +11,11 @@ import type { DetectedProduct } from "./types.ts";
  */
 export function detectProduct(doc: Document, url = doc.location?.href ?? ""): DetectedProduct | null {
   const p = fromJsonLd(doc, url) ?? fromMicrodata(doc, url) ?? fromOpenGraph(doc, url);
-  if (p && p.images.length < 4) p.images = withGallery(doc, url, p.images);
+  if (!p) return null;
+  if (p.images.length < 4) p.images = withGallery(doc, url, p.images);
+  const details = readDetails(doc, ldProduct(doc), p.price);
+  if (Object.keys(details).length) p.details = details;
+  if (!p.color && details.colours?.length === 1) p.color = details.colours[0];
   return p;
 }
 
@@ -52,22 +57,27 @@ export function withGallery(doc: Document, url: string, first: string[], max = 6
 
 // ---------- JSON-LD ----------
 
-function fromJsonLd(doc: Document, url: string): DetectedProduct | null {
-  const scripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
-  for (const s of scripts) {
-    let data: unknown;
-    try {
-      data = JSON.parse(s.textContent ?? "");
-    } catch {
-      continue;
-    }
+/** Every JSON-LD block on the page, parsed. */
+export function ldBlocks(doc: Document): unknown[] {
+  const out: unknown[] = [];
+  for (const s of Array.from(doc.querySelectorAll('script[type="application/ld+json"]'))) {
+    try { out.push(JSON.parse(s.textContent ?? "")); } catch {}
+  }
+  return out;
+}
+
+/** The schema.org Product node, if the page has one. */
+export function ldProduct(doc: Document): any | null {
+  for (const data of ldBlocks(doc)) {
     const product = findProductNode(data);
-    if (product) {
-      const p = normaliseLd(product, url);
-      if (p) return p;
-    }
+    if (product && text(product.name)) return product;
   }
   return null;
+}
+
+function fromJsonLd(doc: Document, url: string): DetectedProduct | null {
+  const product = ldProduct(doc);
+  return product ? normaliseLd(product, url) : null;
 }
 
 function isType(node: any, type: string): boolean {
@@ -112,7 +122,7 @@ function normaliseLd(p: any, url: string): DetectedProduct | null {
     brand: text(p.brand?.name ?? p.brand),
     price: num(offer?.price ?? offer?.lowPrice ?? offer?.priceSpecification?.price),
     currency: text(offer?.priceCurrency ?? offer?.priceSpecification?.priceCurrency),
-    description: text(p.description)?.slice(0, 500),
+    description: text(p.description)?.slice(0, 1200),
     color: text(p.color),
     via: "json-ld",
   };

@@ -45,12 +45,13 @@ export function useFolderAutosave(settings: Settings | null) {
 }
 
 /** Asked once, the first time Zero Q opens after this update. */
-export function DataHomeSheet() {
+export function DataHomeSheet({ hold }: { hold?: boolean } = {}) {
   const settings = useSettings();
   const hud = useHud();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const open = settings?.dataHome === "unset";
+  // during setup the same choice is part of the Connect step
+  const open = !hold && settings?.dataHome === "unset";
 
   const pick = async () => {
     setBusy(true);
