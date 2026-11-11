@@ -82,7 +82,8 @@ export function GooglePhotosSettings() {
   const status = usePhotosStatus();
   const hud = useHud();
   const [ask, setAsk] = useState(false);
-  if (!status || status === "unsupported") return null;
+  // without a Google client ID, photos come in by tapping them on the Google Photos page instead
+  if (!status || status === "unsupported" || status === "setup") return null;
   return (
     <>
       <div className="group-header">Google Photos</div>
@@ -93,7 +94,7 @@ export function GooglePhotosSettings() {
           ? <button className="row" onClick={async () => { await disconnectGooglePhotos(); hud("Google Photos disconnected"); }}><span className="grow danger-link">Disconnect Google Photos</span></button>
           : <button className="row" onClick={() => setAsk(true)}><span className="grow link">{status === "ready" ? "Connect Google Photos" : "Set it up"}</span></button>}
       </div>
-      {!BUILT_IN_CLIENT_ID && status !== "setup" && <p className="group-footer">Using the Google client ID from the Drive sync section below.</p>}
+      {!BUILT_IN_CLIENT_ID && <p className="group-footer">Using the Google client ID from the Drive sync section below.</p>}
       <GooglePhotosSheet open={ask} onClose={() => setAsk(false)} onConnected={() => { setAsk(false); hud("Google Photos connected"); }} />
     </>
   );

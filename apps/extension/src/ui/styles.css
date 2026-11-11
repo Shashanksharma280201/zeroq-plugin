@@ -1213,3 +1213,16 @@ details.why .reading { padding: 16px 4px 0; }
 .setup-list { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; line-height: 1.5; }
 .setup-list code, code.copy { display: block; margin-top: 6px; padding: 10px 12px; border-radius: 12px; background: var(--surface); font: 12px/1.4 ui-monospace, Menlo, monospace; overflow-wrap: anywhere; cursor: copy; }
 .gp .su-field input { background: var(--surface); }
+
+/* collecting photos from another tab: they arrive here one by one */
+.su-card .source.live { box-shadow: inset 0 0 0 2px var(--lav-ink); }
+.su-card .source.live .src-ic.g { animation: live 1.6s ease-in-out infinite; }
+.collect-live { display: grid; grid-template-columns: 12px 1fr auto; gap: 14px; align-items: center; padding: 14px 14px 14px 18px; border-radius: 24px; background: var(--lav); animation: rise 0.5s var(--spring) both; }
+.collect-live b { display: block; font: 600 15px/1.4 var(--font); }
+.collect-live p { margin: 2px 0 0; font-size: 13px; line-height: 1.45; }
+.live-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--lav-ink); animation: live 1.6s ease-in-out infinite; }
+@keyframes live { 50% { transform: scale(0.72); opacity: 0.55; } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+.shot.fresh { animation: shot-in 0.6s var(--spring) both; animation-delay: calc(var(--i, 0) * 70ms); }
+@keyframes shot-in { from { opacity: 0; transform: translateY(14px) scale(0.6) rotate(-4deg); } }
+@media (prefers-reduced-motion: reduce) { .shot.fresh, .collect-live, .live-dot, .su-card .source.live .src-ic.g { animation: none; } }

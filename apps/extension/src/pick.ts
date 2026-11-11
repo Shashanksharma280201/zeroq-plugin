@@ -75,9 +75,9 @@ function unseen(el: Element): boolean {
 }
 
 /** The clothing photo under the pointer: an <img> or a large background image. */
-function candidateAt(x: number, y: number): { el: Element; src: string; alt?: string } | null {
+export function candidateAt(x: number, y: number): { el: Element; src: string; alt?: string } | null {
   for (const el of document.elementsFromPoint(x, y)) {
-    if (el === host) continue;
+    if (el === host || el.tagName.startsWith("ZEROQ-")) continue;
     const r = el.getBoundingClientRect();
     if (r.width < 90 || r.height < 90) continue;
     if (unseen(el)) continue;

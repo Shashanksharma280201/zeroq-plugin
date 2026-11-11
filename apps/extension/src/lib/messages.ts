@@ -6,7 +6,28 @@ export type ToBackground =
   | { type: "open-panel" }
   | { type: "mute-site"; host: string }
   | { type: "sync-now" }
-  | { type: "picked"; src: string; title: string; url: string; alt?: string; more?: string[] };
+  | { type: "picked"; src: string; title: string; url: string; alt?: string; more?: string[] }
+  // collecting photos of you from any page
+  | { type: "collect-start"; url: string; room: number }
+  | { type: "collect-state" }
+  | { type: "collect-add"; src: string; rect?: Rect }
+  | { type: "collect-remove"; id: string }
+  | { type: "collect-done" }
+  | { type: "inbox-take" };
+
+/** Where a photo sits in the page's viewport, for the screenshot fallback. */
+export interface Rect { x: number; y: number; w: number; h: number; dpr: number }
+
+/** What collect mode looks like right now. */
+export interface CollectState {
+  on: boolean;
+  /** how many more photos Zero Q can take */
+  room: number;
+  /** how many were added in this round */
+  taken: number;
+  returnTab?: number;
+  openedTab?: number;
+}
 
 /** Background or panel -> content script */
 export type ToContent =
@@ -14,6 +35,9 @@ export type ToContent =
   | { type: "pick-start" }
   | { type: "related"; src: string }
   | { type: "links" }
+  | { type: "collect"; state: CollectState }
+  | { type: "collect-veil"; on: boolean }
+  | { type: "collect-flash"; ok: boolean }
   | { type: "rating"; src: string; state: "working" | "done" | "error"; score?: number; verdict?: string; headline?: string; hex?: string };
 
 /** A picked image waiting for (or holding) a rating, kept per tab in session storage. */

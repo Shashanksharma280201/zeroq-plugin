@@ -1,12 +1,14 @@
 import { openPanel } from "./lib/platform.ts";
-import { checkProduct, classifyProduct, type DetectedProduct } from "@zq/core";
-import { listItems } from "./lib/db.ts";
-import { backfill, itemKeyOf, logEvent, rebuildMemory } from "./lib/events.ts";
+import { checkProduct, classifyProduct, largerImageUrl, type DetectedProduct } from "@zq/core";
+import { COLLECT_KEY, GONE_KEY, INBOX_KEY, OFF, getCollect, inboxBlobKey } from "./lib/collect.ts";
+import { deleteBlob, listItems, putBlob } from "./lib/db.ts";
+import { backfill, itemKeyOf, logEvent, rebuildMemory, ulid } from "./lib/events.ts";
+import { downscale } from "./lib/images.ts";
 import { notesDue, writeTasteNotes } from "./lib/notes.ts";
 import { aiReady, getSettings } from "./lib/settings.ts";
 import { syncNow } from "./lib/sync.ts";
 import { saveToDownloads } from "./lib/folder.ts";
-import { summarise, type Pick, type TabState, type ToBackground } from "./lib/messages.ts";
+import { summarise, type CollectState, type Pick, type Rect, type TabState, type ToBackground, type ToContent } from "./lib/messages.ts";
 import { setSettings } from "./lib/settings.ts";
 
 // Clicking the toolbar icon or pressing Alt+Shift+Z opens the side panel.
@@ -16,6 +18,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   backfill().catch(() => {});
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({ id: "zq-rate", title: "Rate this for me with Zero Q", contexts: ["image"] });
+    chrome.contextMenus.create({ id: "zq-mine", title: "Use as my outfit photo in Zero Q", contexts: ["image"] });
   });
   if (details.reason === "install") {
     chrome.tabs.create({ url: chrome.runtime.getURL("app.html#setup") });
@@ -35,6 +38,11 @@ chrome.action.onClicked.addListener((tab) => openPanel(tab.id));
 
 // Right-click any image: open the panel (must be first, inside the gesture) and rate it.
 chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "zq-mine" && tab?.id != null && info.srcUrl) {
+    const id = tab.id;
+    collectAdd(id, info.srcUrl, undefined, true).then((r) => chrome.tabs.sendMessage(id, { type: "collect-flash", ok: r.ok } satisfies ToContent).catch(() => {}));
+    return;
+  }
   if (info.menuItemId !== "zq-rate" || tab?.id == null || !info.srcUrl) return;
   openPanel(tab.id);
   const pick = { src: info.srcUrl, title: tab.title ?? "", url: info.pageUrl ?? tab.url ?? "", at: Date.now() };
@@ -99,6 +107,30 @@ chrome.runtime.onMessage.addListener((msg: ToBackground, sender, reply) => {
     logEvent("item_picked", { url: msg.url, src: msg.src, title: msg.title, name: msg.alt, via: "point" }).catch(() => {});
     return false;
   }
+  if (msg.type === "collect-start") {
+    collectStart(msg.url, msg.room, tabId).then(reply);
+    return true;
+  }
+  if (msg.type === "collect-state") {
+    getCollect().then(reply);
+    return true;
+  }
+  if (msg.type === "collect-add" && tabId != null) {
+    collectAdd(tabId, msg.src, msg.rect).then(reply);
+    return true;
+  }
+  if (msg.type === "collect-remove") {
+    collectRemove(msg.id).then(reply);
+    return true;
+  }
+  if (msg.type === "collect-done") {
+    collectDone(tabId).then(reply);
+    return true;
+  }
+  if (msg.type === "inbox-take") {
+    inboxTake().then(reply);
+    return true;
+  }
   if (msg.type === "sync-now") {
     syncNow().then((s) => reply({ ok: true, state: s }), (e) => reply({ ok: false, error: e?.message ?? String(e) }));
     return true;
@@ -114,7 +146,125 @@ chrome.runtime.onMessage.addListener((msg: ToBackground, sender, reply) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   chrome.storage.session.remove([tabKey(tabId), pickKey(tabId)]);
+  // closing the tab Zero Q opened to collect from ends the round
+  getCollect().then((c) => { if (c.on && c.openedTab === tabId) collectDone(undefined); });
 });
+
+// ---------- collecting photos of you from any page ----------
+
+/** One change at a time, so two quick taps never overwrite each other. */
+let collectQueue: Promise<unknown> = Promise.resolve();
+const queued = <T>(fn: () => Promise<T>): Promise<T> => {
+  const run = collectQueue.then(fn, fn);
+  collectQueue = run.catch(() => {});
+  return run;
+};
+const sessionList = async (k: string) => (((await chrome.storage.session.get(k))[k] as string[] | undefined) ?? []);
+
+async function setCollect(state: CollectState) {
+  await chrome.storage.session.set({ [COLLECT_KEY]: state });
+  // every open page shows or hides its tray
+  for (const t of await chrome.tabs.query({})) if (t.id != null) chrome.tabs.sendMessage(t.id, { type: "collect", state } satisfies ToContent).catch(() => {});
+}
+
+function collectStart(url: string, room: number, fromTab?: number) {
+  return queued(async () => {
+    const tab = await chrome.tabs.create({ url, active: true, openerTabId: fromTab });
+    const state: CollectState = { on: true, room: Math.max(0, room), taken: 0, returnTab: fromTab, openedTab: tab.id };
+    await setCollect(state);
+    return state;
+  });
+}
+
+/** The photo itself, as large as the page can give it. If the file cannot be fetched, what you see on screen is used instead. */
+async function readPhoto(tabId: number, src: string, rect?: Rect): Promise<Blob> {
+  const url = largerImageUrl(src);
+  for (const credentials of ["include", "omit"] as const) {
+    try {
+      const res = await fetch(url, { credentials });
+      if (!res.ok) continue;
+      const raw = await res.blob();
+      if (!raw.type.startsWith("image/") && raw.type !== "" && raw.type !== "application/octet-stream") continue;
+      return await downscale(raw, 1600);
+    } catch {}
+  }
+  if (!rect || rect.w < 40 || rect.h < 40) throw new Error("Could not read that photo");
+  const tab = await chrome.tabs.get(tabId);
+  await chrome.tabs.sendMessage(tabId, { type: "collect-veil", on: false } satisfies ToContent).catch(() => {});
+  try {
+    const shot = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "jpeg", quality: 92 });
+    const bmp = await createImageBitmap(await (await fetch(shot)).blob());
+    const k = rect.dpr || 1;
+    const x = Math.max(0, Math.round(rect.x * k)), y = Math.max(0, Math.round(rect.y * k));
+    const w = Math.min(bmp.width - x, Math.round(rect.w * k)), h = Math.min(bmp.height - y, Math.round(rect.h * k));
+    if (w < 40 || h < 40) throw new Error("Could not read that photo");
+    const canvas = new OffscreenCanvas(w, h);
+    canvas.getContext("2d")!.drawImage(bmp, x, y, w, h, 0, 0, w, h);
+    bmp.close();
+    return await canvas.convertToBlob({ type: "image/jpeg", quality: 0.9 });
+  } finally {
+    chrome.tabs.sendMessage(tabId, { type: "collect-veil", on: true } satisfies ToContent).catch(() => {});
+  }
+}
+
+async function collectAdd(tabId: number, src: string, rect?: Rect, anytime = false): Promise<{ ok: boolean; id?: string; state: CollectState; full?: boolean; error?: string }> {
+  const before = await getCollect();
+  if (!anytime && (!before.on || before.taken >= before.room)) return { ok: false, state: before, full: before.on };
+  let blob: Blob;
+  try {
+    blob = await readPhoto(tabId, src, rect);
+  } catch (e: any) {
+    return { ok: false, state: before, error: e?.message ?? "Could not read that photo" };
+  }
+  return queued(async () => {
+    const id = ulid();
+    await putBlob(inboxBlobKey(id), blob);
+    const state = await getCollect();
+    const next = state.on ? { ...state, taken: state.taken + 1 } : state;
+    await chrome.storage.session.set({ [INBOX_KEY]: [...(await sessionList(INBOX_KEY)), id], [COLLECT_KEY]: next });
+    return { ok: true, id, state: next };
+  });
+}
+
+function collectRemove(id: string) {
+  return queued(async () => {
+    const inbox = await sessionList(INBOX_KEY);
+    const state = await getCollect();
+    const next = { ...state, taken: Math.max(0, state.taken - 1) };
+    if (inbox.includes(id)) {
+      await deleteBlob(inboxBlobKey(id));
+      await chrome.storage.session.set({ [INBOX_KEY]: inbox.filter((x) => x !== id), [COLLECT_KEY]: next });
+    } else {
+      // already handed to setup: tell it to drop the photo
+      await chrome.storage.session.set({ [GONE_KEY]: [...(await sessionList(GONE_KEY)), id], [COLLECT_KEY]: next });
+    }
+    return { state: next };
+  });
+}
+
+function collectDone(fromTab?: number) {
+  return queued(async () => {
+    const state = await getCollect();
+    if (!state.on) return state;
+    const off: CollectState = { ...OFF, taken: state.taken };
+    await setCollect(off);
+    if (state.returnTab != null) {
+      const back = await chrome.tabs.update(state.returnTab, { active: true }).catch(() => null);
+      if (back?.windowId != null) chrome.windows.update(back.windowId, { focused: true }).catch(() => {});
+      // the tab Zero Q opened has done its job
+      if (back && state.openedTab != null && (fromTab == null || fromTab === state.openedTab)) chrome.tabs.remove(state.openedTab).catch(() => {});
+    }
+    return off;
+  });
+}
+
+function inboxTake() {
+  return queued(async () => {
+    const ids = await sessionList(INBOX_KEY), gone = await sessionList(GONE_KEY);
+    await chrome.storage.session.set({ [INBOX_KEY]: [], [GONE_KEY]: [] });
+    return { ids, gone };
+  });
+}
 
 // When the wardrobe changes, refresh the badge for the active tab so it
 // stays honest ("!" disappears after you delete the duplicate, etc).

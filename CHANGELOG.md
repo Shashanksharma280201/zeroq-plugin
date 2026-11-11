@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.2 (2026-11-12)
+
+- Google Photos with no account connection. In setup, press Google Photos: it opens in a new tab with a small Zero Q tray. Tap the photos of you and each one flies into the tray and lands in setup straight away. Tap a photo again to take it back. Press Done and you are back in setup with your photos.
+- Works on any page, not just Google Photos: the tray follows you to Instagram or anywhere else while you collect.
+- Right-click any photo on any site and choose "Use as my outfit photo in Zero Q".
+- Zero Q fetches the large version of each photo. If a site refuses, it uses what is on your screen instead.
+- Nothing is read until you tap it. The Google sign-in route from 0.5.1 stays for builds that carry a Google client ID.
+
 ## 0.5.1 (2026-11-10)
 
 - Google Photos by permission. The option is always shown in setup. Zero Q first says what Google will ask and what it will see, then opens Google's permission screen, then the Google Photos picker. It gets only the photos you pick.

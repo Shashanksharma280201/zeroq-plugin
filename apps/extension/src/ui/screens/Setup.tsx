@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { findPeople, type PersonBox } from "../../lib/ai.ts";
 import { canPickFolder, canSaveToDownloads, chooseFolder, saveToDownloads } from "../../lib/folder.ts";
 import { pickFromGooglePhotos } from "../../lib/gphotos.ts";
-import { GooglePhotosSheet, usePhotosStatus } from "../components/GooglePhotos.tsx";
+import { OFF, onCollect, onInbox, startCollect, stopCollect, takeInbox } from "../../lib/collect.ts";
+import type { CollectState } from "../../lib/messages.ts";
+import { usePhotosStatus } from "../components/GooglePhotos.tsx";
 import { cropTo } from "../../lib/images.ts";
 import { buildProfile, getOutfitPhotos, saveOutfitPhotos, saveProfile, type Answers, type StyleProfile } from "../../lib/profile.ts";
 import { aiReady, setSettings, type AIProvider } from "../../lib/settings.ts";
@@ -45,6 +47,10 @@ interface Shot {
   thumb?: string;
   people?: PersonBox[];
   me?: number | null;
+  /** set when the photo was tapped on a web page, so un-tapping it there removes it here */
+  inboxId?: string;
+  /** just arrived: it gets a small entrance */
+  fresh?: number;
 }
 
 function Shell({ step, title, lead, actions, children, hero }: { step: number; title: string; lead: ReactNode; actions?: ReactNode; children: ReactNode; hero?: boolean }) {
@@ -202,7 +208,7 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setP
   const group = useRef<HTMLInputElement>(null);
   const hud = useHud();
   const gp = usePhotosStatus();
-  const [askGoogle, setAskGoogle] = useState(false);
+  const [collect, setCollect] = useState<CollectState>(OFF);
   const [gpBusy, setGpBusy] = useState<string | null>(null);
   const [who, setWho] = useState<Shot | null>(null);
 
@@ -231,15 +237,24 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setP
   const photosRef = useRef(photos);
   photosRef.current = photos;
 
-  const add = (blobs: Blob[], source: Shot["source"]) => {
+  const add = (blobs: Blob[], source: Shot["source"], ids?: string[]) => {
     const room = MAX - photosRef.current.length;
     const take = blobs.filter((b) => b.type.startsWith("image/") || b.type === "").slice(0, room);
     if (blobs.length > room) hud(`Kept ${room}. Up to ${MAX} photos.`);
-    const shots: Shot[] = take.map((blob) => ({ blob, url: URL.createObjectURL(blob), source, state: "ok" }));
+    const shots: Shot[] = take.map((blob, i) => ({ blob, url: URL.createObjectURL(blob), source, state: "ok", inboxId: ids?.[blobs.indexOf(blob)], fresh: ids ? i : undefined }));
     setPhotos((p) => [...p, ...shots]);
     // Uploads you call solo are trusted; Google Photos picks and group shots are checked for other people.
     for (const sh of shots) if (source !== "upload") setTimeout(() => check(sh, source === "group"), 0);
   };
+
+  // Photos tapped on a web page (Google Photos, Instagram, anywhere) land here as they are tapped.
+  useEffect(() => onCollect(setCollect), []);
+  useEffect(() => onInbox(async () => {
+    const { photos: fresh, gone } = await takeInbox();
+    if (fresh.length) add(fresh.map((p) => p.blob), "google", fresh.map((p) => p.id));
+    if (gone.length) setPhotos((ps) => ps.filter((x) => !x.inboxId || !gone.includes(x.inboxId)));
+  }), []);
+  const fromWeb = () => (collect.on ? stopCollect() : startCollect("https://photos.google.com/", MAX - photosRef.current.length));
 
   const fromGoogle = async () => {
     try {
@@ -264,11 +279,9 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setP
       <input ref={group} type="file" accept="image/*" multiple hidden onChange={(e) => { e.target.files && add(Array.from(e.target.files), "group"); e.target.value = ""; }} />
 
       <div className="sources" role="group" aria-label="Add photos from">
-        {gp !== "unsupported" && (
-          <button className="source" onClick={() => (gp === "connected" ? fromGoogle() : setAskGoogle(true))} disabled={!!gpBusy || n >= MAX || gp === null}>
-            <span className="src-ic g"><Icon.photos /></span><b>Google Photos</b><small>{gpBusy ?? (gp === "connected" ? "Pick from your library" : gp === "setup" ? "Not switched on yet" : "Connect, then pick")}</small>
-          </button>
-        )}
+        <button className={`source ${collect.on ? "live" : ""}`} onClick={() => (gp === "connected" && !collect.on ? fromGoogle() : fromWeb())} disabled={!!gpBusy || (n >= MAX && !collect.on)} aria-pressed={collect.on}>
+          <span className="src-ic g"><Icon.photos /></span><b>Google Photos</b><small>{gpBusy ?? (collect.on ? "Collecting. Tap to finish" : "Opens it. Tap your photos")}</small>
+        </button>
         <button className="source" onClick={() => upload.current?.click()} disabled={n >= MAX}>
           <span className="src-ic"><Icon.upload /></span><b>Upload</b><small>Or drop files here</small>
         </button>
@@ -276,9 +289,18 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setP
           <span className="src-ic"><Icon.group /></span><b>A group photo</b><small>Tap yourself, we crop</small>
         </button>
       </div>
+      {collect.on ? (
+        <div className="collect-live" role="status">
+          <i className="live-dot" aria-hidden />
+          <div><b>Tap the photos of you in the other tab</b><p>Each one lands here as you tap it. Press Done there, or here, when you have enough.</p></div>
+          <button className="btn filled small" onClick={() => stopCollect()}>Done</button>
+        </div>
+      ) : (
+        <p className="hint">On Instagram or any other site, right-click a photo and choose "Use as my outfit photo in Zero Q".</p>
+      )}
       <div className="shots" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); add(Array.from(e.dataTransfer.files), "upload"); }}>
         {photos.map((x, i) => (
-          <div className={`shot ${x.state ?? "ok"}`} key={x.url}>
+          <div className={`shot ${x.state ?? "ok"} ${x.fresh != null ? "fresh" : ""}`} key={x.url} style={x.fresh != null ? ({ "--i": x.fresh } as any) : undefined}>
             <img src={x.thumb ?? x.url} alt={`Outfit ${i + 1}`} />
             {x.source === "google" && <span className="shot-src" aria-label="From Google Photos"><Icon.photos /></span>}
             {x.source === "group" || (x.people?.length ?? 0) > 1 ? <span className="shot-src" aria-label="Group photo"><Icon.group /></span> : null}
@@ -296,7 +318,6 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setP
         <b>{n}<span className="faint"> / {MAX}</span></b>
       </div>
       </div>
-      <GooglePhotosSheet open={askGoogle} onClose={() => setAskGoogle(false)} onConnected={() => { setAskGoogle(false); fromGoogle(); }} />
       <WhoSheet shot={who} onClose={() => setWho(null)} onPick={async (i) => {
         const x = who!;
         setWho(null);

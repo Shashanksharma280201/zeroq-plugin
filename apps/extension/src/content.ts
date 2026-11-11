@@ -3,6 +3,7 @@ import { detectProduct, productLinks } from "@zq/core";
 import { relatedImages } from "./related.ts";
 import type { PillSummary, ToBackground, ToContent } from "./lib/messages.ts";
 import { getSettings, onSettings, type Settings } from "./lib/settings.ts";
+import { initCollect } from "./collect.ts";
 import { showCard, startPick } from "./pick.ts";
 
 /**
@@ -163,3 +164,4 @@ function createPill() {
 }
 
 init();
+initCollect();
