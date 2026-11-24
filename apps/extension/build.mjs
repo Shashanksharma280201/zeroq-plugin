@@ -1,5 +1,7 @@
 import * as esbuild from "esbuild";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 
 /**
  * One source, every browser.
@@ -56,14 +58,42 @@ function manifestFor(target) {
   return m;
 }
 
+/**
+ * The face models that find you in group photos. They ship inside the
+ * extension, so finding you works offline and no photo leaves the browser for it.
+ */
+const FACE_MODELS = ["ssd_mobilenetv1_model", "face_landmark_68_model", "face_recognition_model"];
+const need = createRequire(import.meta.url);
+const faceModelDir = join(dirname(need.resolve("@vladmandic/face-api/package.json")), "model");
+/** WebAssembly runtime for computers without a usable graphics chip. Threads are left out: they need page isolation the extension does not use. */
+const WASM = ["tfjs-backend-wasm.wasm", "tfjs-backend-wasm-simd.wasm"];
+const wasmDir = join(dirname(need.resolve("@tensorflow/tfjs-backend-wasm/package.json")), "dist");
+
 async function build(target) {
   const out = OUT[target];
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   cpSync("static", out, { recursive: true });
+  mkdirSync(`${out}/models`, { recursive: true });
+  mkdirSync(`${out}/wasm`, { recursive: true });
+  for (const f of WASM) cpSync(join(wasmDir, f), `${out}/wasm/${f}`);
+  for (const m of FACE_MODELS) for (const f of [`${m}-weights_manifest.json`, `${m}.bin`]) cpSync(join(faceModelDir, f), `${out}/models/${f}`);
+  // their licences travel with them
+  cpSync(join(faceModelDir, "..", "LICENSE"), `${out}/models/LICENSE-face-api.txt`);
+  writeFileSync(`${out}/models/NOTICE.txt`, [
+    "The face models in this folder and the code that runs them come from:",
+    "",
+    "face-api, by Vladimir Mandic, based on face-api.js by Vincent Muehler. MIT licence (see LICENSE-face-api.txt).",
+    "https://github.com/vladmandic/face-api",
+    "",
+    "TensorFlow.js, by Google LLC. Apache License 2.0.",
+    "https://github.com/tensorflow/tfjs",
+    "https://www.apache.org/licenses/LICENSE-2.0",
+    "",
+  ].join("\n"));
   writeFileSync(`${out}/manifest.json`, JSON.stringify(manifestFor(target), null, 2));
   const ctx = await esbuild.context({
-    entryPoints: { background: "src/background.ts", content: "src/content.ts", ui: "src/ui/main.tsx" },
+    entryPoints: { background: "src/background.ts", content: "src/content.ts", ui: "src/ui/main.tsx", faces: "src/faces-worker.ts" },
     outdir: out,
     bundle: true,
     format: "iife",

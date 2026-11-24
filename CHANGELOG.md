@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 (2026-11-24)
+
+- Add photos one way: drop them anywhere on the page, paste them, choose them, or tap them in Google Photos. Solo and group photos go in together. The separate "A group photo" button is gone.
+- Zero Q finds you in group photos by itself. One or two photos of just you teach it your face. Every group photo is then cropped to you: a ring lands on your face, the photo closes in on you, and the crop takes its place.
+- It asks only when it is not clear. If it has only group photos, you tap yourself once and it finds you in the rest. If nobody in a photo looks like you it says so, and "I'm not in this one" removes the photo. Tap the "You" badge on any group photo to change who is you.
+- Your face stays on your device. Faces are read by models that ship inside the extension and run in the browser, on the graphics chip when there is one and on WebAssembly when there is not. The readings are held in memory while you add photos and are never saved or sent anywhere. The AI key is no longer used for group photos.
+- Small faces at the back of a big group are found by taking a second, closer look at the photo.
+- The same photo added twice is skipped, and a file that cannot be opened is named instead of failing quietly.
+- The extension download grows by about 13 MB for the face models.
+
 ## 0.5.2 (2026-11-12)
 
 - Google Photos with no account connection. In setup, press Google Photos: it opens in a new tab with a small Zero Q tray. Tap the photos of you and each one flies into the tray and lands in setup straight away. Tap a photo again to take it back. Press Done and you are back in setup with your photos.

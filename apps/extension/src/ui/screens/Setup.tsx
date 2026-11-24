@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { findPeople, type PersonBox } from "../../lib/ai.ts";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { bodyBox, findMe, portraitBox, tileZoom, type Face } from "@zq/core";
+import { readFaces, stopFaces, warmFaces } from "../../lib/faces.ts";
 import { canPickFolder, canSaveToDownloads, chooseFolder, saveToDownloads } from "../../lib/folder.ts";
 import { pickFromGooglePhotos } from "../../lib/gphotos.ts";
 import { OFF, onCollect, onInbox, startCollect, stopCollect, takeInbox } from "../../lib/collect.ts";
 import type { CollectState } from "../../lib/messages.ts";
 import { usePhotosStatus } from "../components/GooglePhotos.tsx";
-import { cropTo } from "../../lib/images.ts";
+import { cropTo, hashBlob } from "../../lib/images.ts";
 import { buildProfile, getOutfitPhotos, saveOutfitPhotos, saveProfile, type Answers, type StyleProfile } from "../../lib/profile.ts";
 import { aiReady, setSettings, type AIProvider } from "../../lib/settings.ts";
 import { detectOS, downloadsFolder, suggestedFolder } from "../../lib/where.ts";
@@ -36,17 +37,29 @@ const MAX = 20;
 
 type Step = "intro" | "key" | "photos" | "questions" | "building" | "reveal";
 
-/** One outfit photo on its way in. Group photos wait until you tap yourself. */
+/** One outfit photo on its way in. */
 interface Shot {
+  /** what the stylist reads: the whole photo, or you cropped out of a group photo */
   blob: Blob;
+  /** preview of the photo as it was added; also how the photo is told apart from the others */
   url: string;
-  source?: "upload" | "google" | "group";
-  state?: "ok" | "checking" | "choose";
+  source?: "upload" | "google";
+  /** the photo as added, kept once a crop has taken its place in `blob` */
   original?: Blob;
-  /** preview of the crop, once you are picked out of a group */
+  /** preview of the crop */
   thumb?: string;
-  people?: PersonBox[];
-  me?: number | null;
+  /** so the same file is not added twice */
+  hash?: string;
+  /** the clear faces in the photo, largest first. Not set while it is being read; null when it could not be read. */
+  faces?: Face[] | null;
+  w?: number;
+  h?: number;
+  /** the face you tapped as yourself */
+  picked?: number;
+  /** the face the crop was made around */
+  me?: number;
+  /** on while the find-and-zoom plays */
+  found?: boolean;
   /** set when the photo was tapped on a web page, so un-tapping it there removes it here */
   inboxId?: string;
   /** just arrived: it gets a small entrance */
@@ -90,6 +103,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     // Reuse photos from a previous profile when redoing.
     getOutfitPhotos().then((b) => b.length && setPhotos(b.map((blob) => ({ blob, url: URL.createObjectURL(blob) }))));
+    return stopFaces; // the face models are only needed while photos are being added
   }, []);
 
   const build = async () => {
@@ -132,7 +146,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
   );
 }
 
-/** Your AI key and where your data lives. The key comes first so group photos can be checked as they come in. */
+/** Your AI key and where your data lives. */
 function ConnectStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   const st = useSettings();
   const hud = useHud();
@@ -203,55 +217,143 @@ function ConnectStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
   );
 }
 
+const TILE = 3 / 4;
+/** A crop of you is tall and narrow. Its tile shows the head end, not the middle. Matches .shot img.cut in the styles. */
+const HEAD = 0.12;
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/**
+ * Photos of you. Everything goes in the same way: drop, paste, choose, or tap
+ * them in Google Photos. Each photo's faces are read on this device. Photos of
+ * just you teach Zero Q your face; group photos are then cropped to you on
+ * their own, and you are only asked when it is not clear.
+ */
 function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setPhotos: (f: (p: Shot[]) => Shot[]) => void; onBack: () => void; onNext: () => void }) {
   const upload = useRef<HTMLInputElement>(null);
-  const group = useRef<HTMLInputElement>(null);
   const hud = useHud();
   const gp = usePhotosStatus();
   const [collect, setCollect] = useState<CollectState>(OFF);
   const [gpBusy, setGpBusy] = useState<string | null>(null);
-  const [who, setWho] = useState<Shot | null>(null);
+  const [who, setWho] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [portrait, setPortrait] = useState<{ key: string; url: string } | null>(null);
 
-  const patch = (url: string, f: (s: Shot) => Shot) => setPhotos((ps) => ps.map((x) => (x.url === url ? f(x) : x)));
-  /** Looks for people; more than one means you choose yourself. */
-  const check = async (shot: Shot, always: boolean) => {
-    patch(shot.url, (x) => ({ ...x, state: "checking" }));
-    try {
-      const ref = photosRef.current.find((x) => x.state === "ok" && x.url !== shot.url && x.source !== "group");
-      const r = await findPeople(shot.original ?? shot.blob, ref?.blob);
-      if (r.people.length <= 1 && !always) {
-        patch(shot.url, (x) => ({ ...x, state: "ok", people: r.people }));
-      } else if (r.people.length === 0) {
-        patch(shot.url, (x) => ({ ...x, state: "ok", people: [] }));
-        hud("No one found in that photo. Kept it as it is.");
-      } else if (r.people.length === 1) {
-        const cut = await cropTo(shot.original ?? shot.blob, r.people[0].box);
-        patch(shot.url, (x) => ({ ...x, state: "ok", original: x.original ?? x.blob, blob: cut, thumb: URL.createObjectURL(cut), people: r.people, me: 0 }));
-      } else {
-        patch(shot.url, (x) => ({ ...x, state: "choose", people: r.people, me: r.me }));
-      }
-    } catch {
-      patch(shot.url, (x) => ({ ...x, state: "ok" })); // keep it; the stylist can still read the whole photo
-    }
-  };
   const photosRef = useRef(photos);
   photosRef.current = photos;
+  const patch = (url: string, f: (s: Shot) => Shot) => setPhotos((ps) => ps.map((x) => (x.url === url ? f(x) : x)));
 
-  const add = (blobs: Blob[], source: Shot["source"], ids?: string[]) => {
-    const room = MAX - photosRef.current.length;
-    const take = blobs.filter((b) => b.type.startsWith("image/") || b.type === "").slice(0, room);
-    if (blobs.length > room) hud(`Kept ${room}. Up to ${MAX} photos.`);
-    const shots: Shot[] = take.map((blob, i) => ({ blob, url: URL.createObjectURL(blob), source, state: "ok", inboxId: ids?.[blobs.indexOf(blob)], fresh: ids ? i : undefined }));
-    setPhotos((p) => [...p, ...shots]);
-    // Uploads you call solo are trusted; Google Photos picks and group shots are checked for other people.
-    for (const sh of shots) if (source !== "upload") setTimeout(() => check(sh, source === "group"), 0);
+  const add = async (blobs: Blob[], source: Shot["source"], ids?: string[]) => {
+    const have = new Set(photosRef.current.map((x) => x.hash).filter(Boolean));
+    const shots: Shot[] = [];
+    let same = 0, unread = 0;
+    for (const blob of blobs) {
+      if (!(blob.type.startsWith("image/") || blob.type === "")) { unread++; continue; }
+      const hash = await hashBlob(blob).catch(() => undefined);
+      if (hash && have.has(hash)) { same++; continue; }
+      try { (await createImageBitmap(blob)).close(); } catch { unread++; continue; }
+      if (hash) have.add(hash);
+      shots.push({ blob, url: URL.createObjectURL(blob), source, hash, inboxId: ids?.[blobs.indexOf(blob)], fresh: shots.length });
+    }
+    const room = Math.max(0, MAX - photosRef.current.length);
+    if (shots.length) setPhotos((p) => [...p, ...shots.slice(0, Math.max(0, MAX - p.length))]);
+    const notes = [
+      shots.length > room && `Kept ${room}. Up to ${MAX} photos.`,
+      same > 0 && `${same === 1 ? "One was" : `${same} were`} already here.`,
+      unread > 0 && `${unread === 1 ? "One file" : `${unread} files`} could not be opened. JPG, PNG and WebP work.`,
+    ].filter(Boolean);
+    if (notes.length) hud(notes.join(" "), unread > 0 && !shots.length ? "err" : undefined);
   };
+  const addRef = useRef(add);
+  addRef.current = add;
+
+  // Read the faces in every photo that has not been read yet, including ones kept from an earlier setup.
+  const queued = useRef(new Set<string>());
+  useEffect(() => { warmFaces(); }, []);
+  useEffect(() => {
+    for (const x of photos) {
+      if (x.faces !== undefined || queued.current.has(x.url)) continue;
+      queued.current.add(x.url);
+      readFaces(x.blob).then((r) => patch(x.url, (y) => ({ ...y, faces: r ? r.faces : null, w: r?.w, h: r?.h })));
+    }
+  }, [photos]);
+
+  // Who is you in each photo, going by every face read so far and every tap.
+  const found = useMemo(() => findMe(photos.filter((x) => x.faces).map((x) => ({ id: x.url, faces: x.faces!, picked: x.picked }))), [photos]);
+  const verdicts = useMemo(() => new Map(found.verdicts.map((v) => [v.id, v])), [found]);
+
+  // Crop group photos to you once it is clear which person you are. A photo of just you stays whole.
+  const cropping = useRef(new Set<string>());
+  useEffect(() => {
+    for (const x of photos) {
+      const v = verdicts.get(x.url);
+      if (!v || !x.faces || !x.w || !x.h || cropping.current.has(x.url)) continue;
+      const want = v.settled && v.me != null && x.faces.length > 1 && (v.kind === "group" || v.why === "picked") ? v.me : undefined;
+      if (want === x.me) continue;
+      cropping.current.add(x.url);
+      (async () => {
+        try {
+          if (want === undefined) return patch(x.url, (y) => ({ ...y, blob: y.original ?? y.blob, original: undefined, thumb: undefined, me: undefined, found: false }));
+          const whole = x.original ?? x.blob;
+          const cut = await cropTo(whole, bodyBox(x.faces![want], x.faces!, x.w! / x.h!), 0);
+          patch(x.url, (y) => ({ ...y, original: whole, blob: cut, thumb: URL.createObjectURL(cut), me: want, found: !reducedMotion() }));
+        } catch {
+          patch(x.url, (y) => ({ ...y, me: want })); // could not crop: keep the whole photo
+        } finally {
+          cropping.current.delete(x.url);
+        }
+      })();
+    }
+  }, [photos, verdicts]);
+
+  // A small picture of the face Zero Q knows you by.
+  const pKey = found.portrait ? `${found.portrait.id}#${found.portrait.index}` : null;
+  useEffect(() => {
+    if (!pKey || !found.portrait) return setPortrait(null);
+    const x = photosRef.current.find((y) => y.url === found.portrait!.id);
+    const f = x?.faces?.[found.portrait.index];
+    if (!x || !f || !x.w || !x.h) return;
+    let live = true;
+    cropTo(x.original ?? x.blob, portraitBox(f, x.w / x.h), 0).then((b) => live && setPortrait({ key: pKey, url: URL.createObjectURL(b) })).catch(() => {});
+    return () => { live = false; };
+  }, [pKey]);
+
+  // Drop photos anywhere on the page, or paste them.
+  useEffect(() => {
+    let depth = 0;
+    const files = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+    const enter = (e: DragEvent) => { if (files(e)) { depth++; setDragging(true); } };
+    const over = (e: DragEvent) => { if (files(e)) e.preventDefault(); };
+    const leave = (e: DragEvent) => { if (files(e) && --depth <= 0) { depth = 0; setDragging(false); } };
+    const drop = (e: DragEvent) => {
+      if (!files(e)) return;
+      e.preventDefault();
+      depth = 0;
+      setDragging(false);
+      addRef.current(Array.from(e.dataTransfer!.files), "upload");
+    };
+    const paste = (e: ClipboardEvent) => {
+      const fs = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/"));
+      if (fs.length) { e.preventDefault(); addRef.current(fs, "upload"); }
+    };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragover", over);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("drop", drop);
+    window.addEventListener("paste", paste);
+    return () => {
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("drop", drop);
+      window.removeEventListener("paste", paste);
+    };
+  }, []);
 
   // Photos tapped on a web page (Google Photos, Instagram, anywhere) land here as they are tapped.
   useEffect(() => onCollect(setCollect), []);
   useEffect(() => onInbox(async () => {
     const { photos: fresh, gone } = await takeInbox();
-    if (fresh.length) add(fresh.map((p) => p.blob), "google", fresh.map((p) => p.id));
+    if (fresh.length) addRef.current(fresh.map((p) => p.blob), "google", fresh.map((p) => p.id));
     if (gone.length) setPhotos((ps) => ps.filter((x) => !x.inboxId || !gone.includes(x.inboxId)));
   }), []);
   const fromWeb = () => (collect.on ? stopCollect() : startCollect("https://photos.google.com/", MAX - photosRef.current.length));
@@ -269,84 +371,164 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setP
   };
 
   const n = photos.length;
-  const waiting = photos.filter((x) => x.state === "choose").length;
-  const checking = photos.filter((x) => x.state === "checking").length;
-  return (
-    <Shell step={2} title="Add a few photos of you" lead="Full-length photos work best. Zero Q reads your build, your skin tone and the outfits that already look good on you."
-      actions={<><button className="btn filled" disabled={n < MIN || waiting > 0 || checking > 0} onClick={onNext}>Continue</button><button className="btn plain" onClick={onBack}>Back</button></>}>
-      <div className="su-card">
-      <input ref={upload} type="file" accept="image/*" multiple hidden onChange={(e) => { e.target.files && add(Array.from(e.target.files), "upload"); e.target.value = ""; }} />
-      <input ref={group} type="file" accept="image/*" multiple hidden onChange={(e) => { e.target.files && add(Array.from(e.target.files), "group"); e.target.value = ""; }} />
+  const reading = photos.filter((x) => x.faces === undefined).length;
+  const asks = photos.filter((x) => verdicts.get(x.url)?.settled === false);
+  const noRef = asks.some((x) => verdicts.get(x.url)!.why === "no-reference");
+  const cropped = photos.filter((x) => x.me != null).length;
+  const blind = n > 0 && !reading && photos.every((x) => x.faces === null);
+  const asking = who ? photos.find((x) => x.url === who) ?? null : null;
+  const status = reading ? `Looking at ${reading === 1 ? "a photo" : `${reading} photos`}`
+    : noRef ? "Tap yourself in one group photo"
+    : asks.length ? `Check ${asks.length === 1 ? "one photo" : `${asks.length} photos`}`
+    : n < MIN ? `Add at least ${MIN - n} more`
+    : n < BEST ? `${BEST} or more reads best` : "Looking good";
 
-      <div className="sources" role="group" aria-label="Add photos from">
-        <button className={`source ${collect.on ? "live" : ""}`} onClick={() => (gp === "connected" && !collect.on ? fromGoogle() : fromWeb())} disabled={!!gpBusy || (n >= MAX && !collect.on)} aria-pressed={collect.on}>
-          <span className="src-ic g"><Icon.photos /></span><b>Google Photos</b><small>{gpBusy ?? (collect.on ? "Collecting. Tap to finish" : "Opens it. Tap your photos")}</small>
-        </button>
-        <button className="source" onClick={() => upload.current?.click()} disabled={n >= MAX}>
-          <span className="src-ic"><Icon.upload /></span><b>Upload</b><small>Or drop files here</small>
-        </button>
-        <button className="source" onClick={() => group.current?.click()} disabled={n >= MAX}>
-          <span className="src-ic"><Icon.group /></span><b>A group photo</b><small>Tap yourself, we crop</small>
-        </button>
-      </div>
-      {collect.on ? (
-        <div className="collect-live" role="status">
-          <i className="live-dot" aria-hidden />
-          <div><b>Tap the photos of you in the other tab</b><p>Each one lands here as you tap it. Press Done there, or here, when you have enough.</p></div>
-          <button className="btn filled small" onClick={() => stopCollect()}>Done</button>
-        </div>
-      ) : (
-        <p className="hint">On Instagram or any other site, right-click a photo and choose "Use as my outfit photo in Zero Q".</p>
-      )}
-      <div className="shots" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); add(Array.from(e.dataTransfer.files), "upload"); }}>
-        {photos.map((x, i) => (
-          <div className={`shot ${x.state ?? "ok"} ${x.fresh != null ? "fresh" : ""}`} key={x.url} style={x.fresh != null ? ({ "--i": x.fresh } as any) : undefined}>
-            <img src={x.thumb ?? x.url} alt={`Outfit ${i + 1}`} />
-            {x.source === "google" && <span className="shot-src" aria-label="From Google Photos"><Icon.photos /></span>}
-            {x.source === "group" || (x.people?.length ?? 0) > 1 ? <span className="shot-src" aria-label="Group photo"><Icon.group /></span> : null}
-            {x.state === "checking" && <span className="shot-over"><i className="spin" />Finding you</span>}
-            {x.state === "choose" && <button className="shot-over choose" onClick={() => setWho(x)}><Icon.face />Tap to pick you</button>}
-            <button className="slot-x" aria-label={`Remove outfit ${i + 1}`} onClick={() => setPhotos((p) => p.filter((y) => y.url !== x.url))}>✕</button>
-          </div>
-        ))}
-        {n < MAX && (
-          <button className="shot add" onClick={() => upload.current?.click()} aria-label="Add outfit photo"><Icon.plus /></button>
+  return (
+    <Shell step={2} title="Add photos of you" lead="Solo or with friends, add them all. Zero Q finds you in each one, then reads your build, your skin tone and the outfits that already suit you."
+      actions={<><button className="btn filled" disabled={n < MIN || asks.length > 0 || reading > 0} onClick={onNext}>Continue</button><button className="btn plain" onClick={onBack}>Back</button></>}>
+      <div className="su-card">
+        <input ref={upload} type="file" accept="image/*" multiple hidden onChange={(e) => { e.target.files && add(Array.from(e.target.files), "upload"); e.target.value = ""; }} />
+
+        {n === 0 && (
+          <button className="dropzone" onClick={() => upload.current?.click()}>
+            <span className="dz-stack" aria-hidden><i /><i /><i><Icon.person /></i></span>
+            <b>Drop your photos here</b>
+            <span>or choose them from this computer. Pasting works too.</span>
+          </button>
         )}
+        <div className="sources" role="group" aria-label="Add photos from">
+          {n > 0 && (
+            <button className="source" onClick={() => upload.current?.click()} disabled={n >= MAX}>
+              <span className="src-ic"><Icon.upload /></span><b>Add photos</b><small>Choose, drop or paste</small>
+            </button>
+          )}
+          <button className={`source ${collect.on ? "live" : ""}`} onClick={() => (gp === "connected" && !collect.on ? fromGoogle() : fromWeb())} disabled={!!gpBusy || (n >= MAX && !collect.on)} aria-pressed={collect.on}>
+            <span className="src-ic g"><Icon.photos /></span><b>Google Photos</b><small>{gpBusy ?? (collect.on ? "Collecting. Tap to finish" : "Opens it. Tap your photos")}</small>
+          </button>
+        </div>
+        {collect.on ? (
+          <div className="collect-live" role="status">
+            <i className="live-dot" aria-hidden />
+            <div><b>Tap the photos of you in the other tab</b><p>Each one lands here as you tap it. Press Done there, or here, when you have enough.</p></div>
+            <button className="btn filled small" onClick={() => stopCollect()}>Done</button>
+          </div>
+        ) : n === 0 ? (
+          <ul className="dz-tips">
+            <li><Icon.person /><span><b>One or two of just you</b>So Zero Q knows your face.</span></li>
+            <li><Icon.group /><span><b>Group photos are welcome</b>It crops them to you.</span></li>
+            <li><Icon.expand /><span><b>Full length is best</b>Head to toe shows the whole outfit.</span></li>
+            <li><Icon.check /><span><b>Your face stays here</b>It is matched on this device and never saved.</span></li>
+          </ul>
+        ) : null}
+
+        {n > 0 && (portrait && found.portrait ? (
+          <div className="you" role="status">
+            <img src={portrait.url} alt="" />
+            <div><b>That's you</b><p>{cropped ? `Found you in ${cropped === 1 ? "one group photo" : `${cropped} group photos`} and cropped ${cropped === 1 ? "it" : "them"} to you.` : "Group photos you add are cropped to you."}</p></div>
+          </div>
+        ) : noRef ? (
+          <div className="you ask" role="status">
+            <span className="you-q" aria-hidden><Icon.face /></span>
+            <div><b>Which one is you?</b><p>Add one photo of just you, or tap yourself in a group photo. Zero Q finds you in the rest.</p></div>
+          </div>
+        ) : blind ? (
+          <p className="hint" role="status">Faces could not be read in this browser, so group photos stay whole. Crop them to you before adding.</p>
+        ) : null)}
+
+        {n > 0 && (
+          <div className="shots">
+            {photos.map((x, i) => {
+              const v = verdicts.get(x.url);
+              const state = x.faces === undefined ? "reading" : v && !v.settled ? "choose" : "ok";
+              const many = (x.faces?.length ?? 0) > 1;
+              return (
+                <div className={`shot ${state} ${x.fresh != null ? "fresh" : ""} ${x.found ? "found" : ""}`} key={x.url} style={x.fresh != null ? ({ "--i": x.fresh } as any) : undefined}>
+                  {x.found && x.thumb && x.me != null && x.faces && x.w && x.h
+                    ? <FoundYou shot={x} label={`Outfit ${i + 1}`} onEnd={() => patch(x.url, (y) => ({ ...y, found: false }))} />
+                    : <img className={x.thumb ? "cut" : undefined} src={x.thumb ?? x.url} alt={`Outfit ${i + 1}`} />}
+                  {x.source === "google" && <span className="shot-src" aria-label="From Google Photos"><Icon.photos /></span>}
+                  {state === "ok" && many && !x.found && (
+                    <button className="shot-who" aria-label={`Photo ${i + 1}: ${x.me != null ? "cropped to you. Change who is you" : "choose who is you"}`} onClick={() => setWho(x.url)}>
+                      {x.me != null ? <Icon.tick /> : <Icon.group />}{x.me != null && <span>You</span>}
+                    </button>
+                  )}
+                  {state === "reading" && <span className="shot-over"><i className="scan" aria-hidden />Looking</span>}
+                  {state === "choose" && (
+                    <button className="shot-over choose" onClick={() => setWho(x.url)}>
+                      <Icon.face />{v!.why === "unsure" ? "Is this you?" : v!.why === "not-found" ? "Can't see you. Tap to show" : "Which one is you?"}
+                    </button>
+                  )}
+                  <button className="slot-x" aria-label={`Remove outfit ${i + 1}`} onClick={() => setPhotos((p) => p.filter((y) => y.url !== x.url))}>✕</button>
+                </div>
+              );
+            })}
+            {n < MAX && <button className="shot add" onClick={() => upload.current?.click()} aria-label="Add outfit photos"><Icon.plus /></button>}
+          </div>
+        )}
+        {n > 0 && (
+          <div className="slot-count">
+            <span className="hint" role="status">{status}</span>
+            <b>{n}<span className="faint"> / {MAX}</span></b>
+          </div>
+        )}
+        {n > 0 && !collect.on && <p className="hint">On Instagram or any other site, right-click a photo and choose "Use as my outfit photo in Zero Q".</p>}
       </div>
-      <div className="slot-count">
-        <span className="hint">{n < MIN ? `Add at least ${MIN - n} more` : waiting ? `Tap yourself in ${waiting} group ${waiting === 1 ? "photo" : "photos"}` : checking ? "Checking photos" : n < BEST ? `${BEST} or more reads best` : "Looking good"}</span>
-        <b>{n}<span className="faint"> / {MAX}</span></b>
-      </div>
-      </div>
-      <WhoSheet shot={who} onClose={() => setWho(null)} onPick={async (i) => {
-        const x = who!;
+
+      {dragging && <div className="drop-veil" aria-hidden><div><Icon.upload /><b>Drop to add</b><span>Solo and group photos together</span></div></div>}
+      <WhoSheet shot={asking} guess={asking ? verdicts.get(asking.url)?.me ?? null : null} onClose={() => setWho(null)} onPick={(i) => {
+        const x = asking!;
         setWho(null);
         if (i == null) return setPhotos((p) => p.filter((y) => y.url !== x.url));
-        const cut = await cropTo(x.original ?? x.blob, x.people![i].box);
-        patch(x.url, (y) => ({ ...y, state: "ok", original: y.original ?? y.blob, blob: cut, thumb: URL.createObjectURL(cut), me: i }));
+        patch(x.url, (y) => ({ ...y, picked: i }));
       }} />
     </Shell>
   );
 }
 
+/** The moment a group photo is recognised: a ring lands on your face, the photo closes in on you, and the crop takes over. */
+function FoundYou({ shot, label, onEnd }: { shot: Shot; label: string; onEnd: () => void }) {
+  const aspect = shot.w! / shot.h!;
+  const f = shot.faces![shot.me!];
+  const z = tileZoom(bodyBox(f, shot.faces!, aspect), aspect, TILE, HEAD);
+  // the ring is drawn in the photo's own frame: its size is the face's longer side, as a share of the photo's width
+  const ring = Math.max(f.box[2] - f.box[0], (f.box[3] - f.box[1]) / aspect) * 1.5 * 100;
+  useEffect(() => {
+    const t = setTimeout(onEnd, 2200); // in case the animation never reports back
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <>
+      <div className="shot-zoom" aria-hidden
+        style={{ left: `${z.frame.left}%`, top: `${z.frame.top}%`, width: `${z.frame.width}%`, height: `${z.frame.height}%`, "--x": `${z.move.x}%`, "--y": `${z.move.y}%`, "--s": z.move.scale } as any}>
+        <img src={shot.url} alt="" />
+        <i className="shot-ring" style={{ left: `${((f.box[0] + f.box[2]) / 2) * 100}%`, top: `${((f.box[1] + f.box[3]) / 2) * 100}%`, width: `${ring}%` }} />
+      </div>
+      <img className="shot-crop cut" src={shot.thumb} alt={label} onAnimationEnd={onEnd} />
+    </>
+  );
+}
 
-/** A group photo with a ring on each person: tap the one that is you. */
-function WhoSheet({ shot, onClose, onPick }: { shot: Shot | null; onClose: () => void; onPick: (i: number | null) => void }) {
+/** A group photo with a ring on each face: tap the one that is you. */
+function WhoSheet({ shot, guess, onClose, onPick }: { shot: Shot | null; guess: number | null; onClose: () => void; onPick: (i: number | null) => void }) {
+  const aspect = shot?.w && shot?.h ? shot.w / shot.h : 1;
   return (
     <Sheet open={!!shot} onClose={onClose} title="Which one is you?">
       {shot && (
         <div className="who">
           <div className="who-photo">
             <img src={shot.url} alt="Group photo" />
-            {shot.people?.map((p, i) => (
-              <button key={i} className={`who-box ${shot.me === i ? "guess" : ""}`} aria-label={`Person ${i + 1}${shot.me === i ? ", probably you" : ""}`}
-                style={{ left: `${p.box[0] * 100}%`, top: `${p.box[1] * 100}%`, width: `${(p.box[2] - p.box[0]) * 100}%`, height: `${(p.box[3] - p.box[1]) * 100}%` }}
-                onClick={() => onPick(i)}>
-                <span>{shot.me === i ? "You?" : i + 1}</span>
-              </button>
-            ))}
+            {shot.faces?.map((f, i) => {
+              const mine = shot.me === i || (shot.me == null && guess === i);
+              return (
+                <button key={i} className={`who-face ${mine ? "guess" : ""}`} aria-label={`Person ${i + 1}${shot.me === i ? ", chosen as you" : mine ? ", probably you" : ""}`}
+                  style={{ left: `${((f.box[0] + f.box[2]) / 2) * 100}%`, top: `${((f.box[1] + f.box[3]) / 2) * 100}%`, width: `${Math.max(f.box[2] - f.box[0], (f.box[3] - f.box[1]) / aspect) * 150}%` }}
+                  onClick={() => onPick(i)}>
+                  {mine && <span>{shot.me === i ? "You" : "You?"}</span>}
+                </button>
+              );
+            })}
           </div>
-          <p className="hint center">Zero Q crops to you and reads only your outfit.</p>
+          <p className="hint center">Tap your face. Zero Q crops to you and reads only your outfit.</p>
           <button className="btn plain small block" onClick={() => onPick(null)}>I'm not in this one</button>
         </div>
       )}

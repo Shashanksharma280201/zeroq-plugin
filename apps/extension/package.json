@@ -1,6 +1,6 @@
 {
   "name": "@zq/extension",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,9 +16,11 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0",
+    "@tensorflow/tfjs-backend-wasm": "4.22.0",
+    "@types/chrome": "^0.0.280",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "@types/chrome": "^0.0.280"
+    "@vladmandic/face-api": "^1.7.15",
+    "esbuild": "^0.24.0"
   }
 }
