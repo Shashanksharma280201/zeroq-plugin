@@ -1,69 +1,86 @@
 import type { ToBackground, ToContent } from "./lib/messages.ts";
+import { PAGE_TOKENS, onPanel, pageFont, panelOpen } from "./onpage.ts";
 import { relatedImages } from "./related.ts";
 
 /**
  * Pick mode: point at any clothing photo on any site and click to rate it.
  * Started by Alt+Shift+X or the pill's target button. Esc cancels.
- * The rating comes back as a small card pinned to the photo.
+ *
+ * The answer comes back as a small tag that sits on the photo it belongs to.
+ * It moves with that photo and leaves the screen when the photo does, so it
+ * never covers anything else on the page. While the side panel is open the tag
+ * stays away: the full answer is already showing there.
  */
-
-const SETTLE = "cubic-bezier(.32,.72,0,1)";
 
 let host: HTMLElement | null = null;
 let root: ShadowRoot;
 let active = false;
 let hovered: { el: Element; src: string; alt?: string } | null = null;
 let pinned: { el: Element; src: string } | null = null;
+type RatingMsg = Extract<ToContent, { type: "rating" }>;
+let last: RatingMsg | null = null;
+/** the tag was closed by hand for this photo */
+let closedFor = "";
+let opened = false;
+let foldTimer: ReturnType<typeof setTimeout> | undefined;
 
 function ensureHost() {
   if (host) return;
+  pageFont();
   host = document.createElement("zeroq-pick");
   host.style.cssText = "all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;";
   root = host.attachShadow({ mode: "closed" });
   root.innerHTML = `
-<style>
+<style>${PAGE_TOKENS}
   * { box-sizing: border-box; }
-  :host { --ink: #1f201d; --muted: #5f605c; --surface: #ffffff; --line: rgba(0,0,0,.08); --track: #efefec; }
-  .ring { position: fixed; border-radius: 12px; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1f201d, 0 0 0 9999px rgba(0,0,0,.32); opacity: 0;
-    transition: left .2s ${SETTLE}, top .2s ${SETTLE}, width .2s ${SETTLE}, height .2s ${SETTLE}, opacity .15s; pointer-events: none; }
+  .ring { position: fixed; border-radius: 22px; box-shadow: 0 0 0 3px var(--milk), 0 0 0 5px var(--ink), 0 0 0 9999px rgba(42,41,39,.34); opacity: 0;
+    transition: left .25s var(--settle), top .25s var(--settle), width .25s var(--settle), height .25s var(--settle), opacity .15s; pointer-events: none; }
   .ring.on { opacity: 1; }
-  .ring span { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; background: #1f201d; color: #fff; font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; white-space: nowrap; }
-  .hint, .card { color: var(--ink); background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 12px 32px rgba(0,0,0,.18); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; letter-spacing: -.01em; }
-  .hint { position: fixed; left: 50%; top: 16px; transform: translate(-50%, -80px); display: flex; gap: 10px; align-items: center; padding: 10px 12px 10px 16px; border-radius: 999px; font-size: 14px; font-weight: 500; transition: transform .4s ${SETTLE}; }
+  .ring span { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); height: 34px; padding: 0 16px; border-radius: 17px; display: grid; place-items: center; background: var(--ink); color: var(--milk); font: 600 14px/1 var(--f); white-space: nowrap; }
+  .hint { position: fixed; left: 50%; top: 16px; transform: translate(-50%, -90px); display: flex; gap: 10px; align-items: center; height: 46px; padding: 0 10px 0 18px; border-radius: 23px;
+    color: var(--ink); background: var(--milk); box-shadow: var(--lift); font: 500 14px/1 var(--f); transition: transform .45s var(--settle); }
   .hint.on { transform: translate(-50%, 0); }
-  .hint kbd { font: 500 12px/1 inherit; padding: 4px 7px; border-radius: 6px; background: var(--track); }
-  .card { position: fixed; width: 272px; padding: 0; overflow: hidden; border-radius: 8px; pointer-events: auto; font-size: 13px; line-height: 1.38;
-    opacity: 0; transform: translateY(6px); transition: opacity .2s, transform .35s ${SETTLE}; }
-  .card.on { opacity: 1; transform: none; }
-  .row { display: flex; gap: 12px; align-items: center; padding: 14px; }
-  .fieldc { padding: 14px 16px 12px; background: var(--fb, #f3f1ec); color: var(--fi, #141210); }
-  .big { font: 400 64px/0.85 "Instrument Serif", ui-serif, Georgia, serif; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
-  .ital { font: italic 400 20px/1.1 "Instrument Serif", ui-serif, Georgia, serif; margin-top: 4px; }
-  .body { padding: 12px 16px 14px; }
-  .score { position: relative; width: 52px; height: 52px; flex: none; }
-  .score svg { width: 52px; height: 52px; transform: rotate(-90deg); }
-  .score b { position: absolute; inset: 0; display: grid; place-items: center; font: 600 17px/1 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
-  .score .arc { transition: stroke-dashoffset .9s cubic-bezier(.22,1,.36,1); }
-  .verdict { font-weight: 600; font-size: 16px; line-height: 1.2; letter-spacing: -.02em; }
-  .head { color: var(--muted); margin-top: 3px; }
-  .spin { width: 52px; height: 52px; border-radius: 50%; border: 4px solid var(--track); border-top-color: var(--ink); animation: spin .9s linear infinite; flex: none; }
+  .hint kbd { font: 600 12px/1 var(--f); padding: 6px 9px; border-radius: 10px; background: var(--stone); }
+
+  .tag { position: fixed; left: 0; top: 0; display: grid; justify-items: start; gap: 6px; color: var(--ink); pointer-events: none; opacity: 0; transform: scale(.7); transform-origin: 0 0;
+    transition: opacity .2s, transform .45s var(--spring); }
+  .tag.on { opacity: 1; transform: none; }
+  .tag.on > * { pointer-events: auto; }
+  button { all: unset; cursor: pointer; -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+  .chip { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px 0 12px; border-radius: 20px; background: var(--milk); color: var(--ink); box-shadow: var(--lift);
+    font: 600 14px/1 var(--f); letter-spacing: -.01em; white-space: nowrap; transition: transform .15s ease-out; }
+  .chip:active { transform: scale(.96); }
+  .chip b { font: 600 21px/1 var(--f); letter-spacing: -.04em; font-variant-numeric: tabular-nums; min-width: 1.2em; text-align: center; }
+  .chip.buy { background: var(--sage); color: var(--sage-ink); }
+  .chip.wait { background: var(--butter); color: var(--butter-ink); }
+  .chip.skip { background: var(--blush); color: var(--blush-ink); }
+  .chip:focus-visible, .more button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--stone); border-top-color: var(--ink); animation: spin .9s linear infinite; flex: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .x { all: unset; cursor: pointer; position: absolute; top: 8px; right: 10px; color: var(--fi, var(--muted)); font-size: 13px; padding: 4px; opacity: .7; }
-  .more { all: unset; cursor: pointer; display: inline-block; margin-top: 10px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
-  @media (prefers-color-scheme: dark) { :host { --ink: #ffffff; --muted: #b4b4b4; --surface: #1c1c1c; --line: rgba(255,255,255,.1); --track: #2a2a2a; } }
-  @media (prefers-reduced-motion: reduce) { * { transition-duration: .01s !important; animation-duration: 2s !important; } }
+  .more { width: 248px; padding: 14px 16px 14px; border-radius: 20px; background: var(--milk); box-shadow: var(--lift); font: 400 14px/1.4 var(--f);
+    display: none; }
+  .tag.open .more { display: block; animation: drop .3s var(--settle) both; }
+  @keyframes drop { from { opacity: 0; transform: translateY(-6px); } }
+  .more p { margin: 0 0 12px; }
+  .acts { display: flex; gap: 6px; }
+  .more button { height: 36px; padding: 0 14px; border-radius: 18px; font: 600 13px/1 var(--f); background: var(--stone); color: var(--ink); }
+  .more .go { background: var(--ink); color: var(--milk); }
+  @media (prefers-reduced-motion: reduce) { * { transition-duration: .01s !important; animation-duration: .01s !important; } .spin { animation-duration: 2s !important; } }
 </style>
 <div class="ring"><span>Rate this</span></div>
 <div class="hint"><span>Click any clothing photo to rate it for you</span><kbd>Esc</kbd></div>
-<div class="card" role="status" aria-live="polite"></div>`;
+<div class="tag" role="status" aria-live="polite"></div>`;
   document.documentElement.appendChild(host);
   addEventListener("scroll", place, { passive: true, capture: true });
   addEventListener("resize", place, { passive: true });
+  // photos also move without a scroll (carousels, pages that load late)
+  setInterval(() => { if (last && !panelOpen()) place(); }, 600);
+  onPanel(() => render());
 }
 
 const ring = () => root.querySelector(".ring") as HTMLElement;
 const hint = () => root.querySelector(".hint") as HTMLElement;
-const card = () => root.querySelector(".card") as HTMLElement;
+const tag = () => root.querySelector(".tag") as HTMLElement;
 
 /** A hover-only photo (the back view a store fades in) that the shopper can't see right now. */
 function unseen(el: Element): boolean {
@@ -128,7 +145,7 @@ export function startPick() {
   if (active) return;
   active = true;
   hovered = null;
-  card().classList.remove("on");
+  tag().classList.remove("on");
   hint().classList.add("on");
   document.documentElement.style.setProperty("cursor", "crosshair", "important");
   addEventListener("pointermove", onMove, true);
@@ -150,22 +167,62 @@ function stop() {
   removeEventListener("keydown", onKey, true);
 }
 
+/**
+ * Keeps the tag on its photo: tucked into the photo's top left corner, sliding
+ * down with the part of the photo still on screen, and gone once the photo is.
+ */
 function place() {
-  if (!pinned || !host) return;
-  const c = card();
+  if (!host || !pinned) return;
+  const t = tag();
+  const show = !!last && !panelOpen() && closedFor !== pinned.src;
   const b = pinned.el.getBoundingClientRect();
-  const w = 260;
-  let left = b.right + 12;
-  if (left + w > innerWidth - 8) left = Math.max(8, b.left + 12);
-  let top = Math.max(8, b.top + 12);
-  if (top + 140 > innerHeight) top = Math.max(8, innerHeight - 160);
-  c.style.left = `${left}px`;
-  c.style.top = `${top}px`;
+  const onScreen = pinned.el.isConnected && b.width > 40 && b.bottom > 64 && b.top < innerHeight - 64 && b.right > 64 && b.left < innerWidth - 64;
+  if (!show || !onScreen) {
+    t.classList.remove("on");
+    return;
+  }
+  const left = Math.min(Math.max(b.left + 10, 8), Math.max(8, b.right - 60));
+  const top = Math.min(Math.max(b.top + 10, 8), b.bottom - 50);
+  t.style.left = `${Math.round(left)}px`;
+  t.style.top = `${Math.round(top)}px`;
+  t.classList.add("on");
 }
 
-const tone = (s: number) => (s >= 75 ? "#2e7d32" : s >= 55 ? "currentColor" : "#b42318");
+const decision = (s: number) => (s >= 75 ? "buy" : s >= 55 ? "wait" : "skip");
+const WORD = { buy: "Buy it", wait: "Sleep on it", skip: "Skip it" } as const;
 
-export function showCard(m: Extract<ToContent, { type: "rating" }>) {
+/** Draws the tag for the latest answer. Nothing shows while the side panel is open. */
+function render() {
+  if (!host) return;
+  const t = tag();
+  const m = last;
+  if (!m || !pinned) return t.classList.remove("on");
+  if (m.state === "working") {
+    t.innerHTML = `<div class="chip"><i class="spin"></i>Looking at it</div>`;
+  } else if (m.state === "error") {
+    t.innerHTML = `<button class="chip" aria-expanded="${opened}">Couldn't rate this</button>
+<div class="more"><p>${esc(m.headline ?? "Open Zero Q for details.")}</p><div class="acts"><button class="go">Open Zero Q</button><button class="hide">Hide</button></div></div>`;
+  } else {
+    const s = m.score ?? 0, d = decision(s);
+    t.innerHTML = `<button class="chip ${d}" aria-expanded="${opened}" aria-label="Zero Q score ${s}, ${WORD[d]}. Show why."><b>${s}</b>${WORD[d]}</button>
+<div class="more"><p>${esc(m.headline ?? "")}</p><div class="acts"><button class="go">See the full answer</button><button class="hide">Hide</button></div></div>`;
+  }
+  t.classList.toggle("open", opened && m.state !== "working");
+  t.querySelector("button.chip")?.addEventListener("click", () => {
+    opened = !opened;
+    clearTimeout(foldTimer);
+    t.classList.toggle("open", opened);
+    t.querySelector(".chip")?.setAttribute("aria-expanded", String(opened));
+  });
+  t.querySelector(".go")?.addEventListener("click", () => chrome.runtime.sendMessage({ type: "open-panel" } satisfies ToBackground));
+  t.querySelector(".hide")?.addEventListener("click", () => {
+    closedFor = pinned?.src ?? "";
+    place();
+  });
+  place();
+}
+
+export function showCard(m: RatingMsg) {
   ensureHost();
   // Right-click picks have no element yet: pin to the matching image if we can find it.
   if (!pinned || pinned.src !== m.src) {
@@ -173,40 +230,16 @@ export function showCard(m: Extract<ToContent, { type: "rating" }>) {
     pinned = img ? { el: img, src: m.src } : pinned;
   }
   if (!pinned) return;
-  const c = card();
-  const C = 2 * Math.PI * 22;
-  if (m.state === "working") {
-    c.innerHTML = `<div class="row"><div class="spin"></div><div><div class="verdict">Looking at it</div><div class="head">Checking colour, shape and your style.</div></div></div>`;
-  } else if (m.state === "error") {
-    c.innerHTML = `<div class="body"><button class="x" aria-label="Close">✕</button><div class="verdict">Couldn't rate this</div><div class="head">${esc(m.headline ?? "Open the Zero Q panel for details.")}</div></div>`;
-  } else {
-    const s = m.score ?? 0;
-    const hex = m.hex && /^#[0-9a-f]{6}$/i.test(m.hex) ? m.hex : "#f3f1ec";
-    const ink = luminance(hex) > 0.32 ? "#141210" : "#fbf8f2";
-    c.innerHTML = `<div class="fieldc" style="--fb:${hex};--fi:${ink}"><button class="x" aria-label="Close">✕</button>
-<div class="big"><b>0</b></div><div class="ital">${esc((m.verdict ?? "").toLowerCase())}</div></div>
-<div class="body"><div class="head" style="color:inherit">${esc(m.headline ?? "")}</div><button class="more">See the reading</button></div>`;
-    requestAnimationFrame(() => countUp(c.querySelector(".big b") as HTMLElement, s));
-    c.querySelector(".more")!.addEventListener("click", () => chrome.runtime.sendMessage({ type: "open-panel" } satisfies ToBackground));
+  const fresh = m.state !== "working" && (last?.state === "working" || last?.src !== m.src);
+  if (last?.src !== m.src) closedFor = "";
+  last = m;
+  // A new answer opens with its reason for a few seconds, then folds down to the score.
+  if (fresh) {
+    opened = true;
+    clearTimeout(foldTimer);
+    foldTimer = setTimeout(() => { opened = false; tag().classList.remove("open"); tag().querySelector(".chip")?.setAttribute("aria-expanded", "false"); }, 7000);
   }
-  c.querySelector(".x")?.addEventListener("click", () => c.classList.remove("on"));
-  place();
-  requestAnimationFrame(() => c.classList.add("on"));
-}
-
-function countUp(el: HTMLElement, to: number) {
-  const t0 = performance.now();
-  const step = (t: number) => {
-    const k = Math.min(1, (t - t0) / 1000);
-    el.textContent = String(Math.round(to * (1 - Math.pow(1 - k, 3))));
-    if (k < 1) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-}
-
-function luminance(hex: string): number {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  render();
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);

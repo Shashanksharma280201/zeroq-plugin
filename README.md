@@ -14,6 +14,7 @@ On any product page it tells you whether the item goes with what you own, warns 
 - **Goes with.** Things you own that pair with the item, scored on colour harmony and how dressy each piece is.
 - **Stylist (optional).** With a Gemini or Claude key: a short honest take on each product, photo tagging when you add clothes, outfits for any occasion, and the gaps in your wardrobe.
 - **Try-on (optional).** With Gemini (default) or FASHN: see the item on your photo, with a drag to compare. Colour and silhouette only, never fit.
+- **Find it for me.** Say what you want: a kind of piece, colours, a price. Zero Q looks through the stores you visit, keeps what fits and ends on one pick. Searched also names the one piece to buy out of everything you looked at.
 - **Photos of you.** Drop in solo and group photos together. Zero Q learns your face from a photo or two of just you and crops every group photo to you. This runs in your browser with models that ship inside the extension: nothing about your face is saved or sent anywhere.
 - **Wardrobe.** Start with 5 tops and 5 bottoms. "I bought this" on a product page adds it with its photo.
 - **Memory.** Every rating, pick, brand scan, try-on, purchase and score answer is saved in a local log, forever unless you clear it. A taste memory built from it (what you actually spend, the colours and brands you keep choosing, how you rate Zero Q's scores) goes into every AI request, and once a week the AI writes short notes on your taste that you can delete. See [MEMORY.md](MEMORY.md).

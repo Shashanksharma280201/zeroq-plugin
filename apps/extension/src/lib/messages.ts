@@ -6,6 +6,10 @@ export type ToBackground =
   | { type: "open-panel" }
   | { type: "mute-site"; host: string }
   | { type: "sync-now" }
+  // is the side panel open in my window? (the page stays clear while it is)
+  | { type: "panel-state" }
+  // Zero Q's typeface, as base64 bytes, for what it draws on the page
+  | { type: "font" }
   | { type: "picked"; src: string; title: string; url: string; alt?: string; more?: string[] }
   // collecting photos of you from any page
   | { type: "collect-start"; url: string; room: number }
@@ -35,6 +39,7 @@ export type ToContent =
   | { type: "pick-start" }
   | { type: "related"; src: string }
   | { type: "links" }
+  | { type: "panel"; open: boolean }
   | { type: "collect"; state: CollectState }
   | { type: "collect-veil"; on: boolean }
   | { type: "collect-flash"; ok: boolean }

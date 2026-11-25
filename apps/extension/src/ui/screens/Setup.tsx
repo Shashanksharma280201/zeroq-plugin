@@ -10,7 +10,8 @@ import { cropTo, hashBlob } from "../../lib/images.ts";
 import { buildProfile, getOutfitPhotos, saveOutfitPhotos, saveProfile, type Answers, type StyleProfile } from "../../lib/profile.ts";
 import { aiReady, setSettings, type AIProvider } from "../../lib/settings.ts";
 import { detectOS, downloadsFolder, suggestedFolder } from "../../lib/where.ts";
-import { Flat, backdropOf, type FlatKind } from "../components/Flat.tsx";
+import { PORTRAIT_KEY } from "../components/MePhoto.tsx";
+import { deleteBlob, putBlob } from "../../lib/db.ts";
 import { Icon, Segmented, Sheet, Switch, transition, useHud, useSettings } from "../components/kit.tsx";
 
 /**
@@ -21,13 +22,14 @@ import { Icon, Segmented, Sheet, Switch, transition, useHud, useSettings } from 
 const STEPS = ["Connect", "Photos", "Taste", "Label"];
 const SHOP_FOR = ["Work", "Everyday", "Going out", "Ethnic", "Weddings", "Gym", "Travel"];
 const BUDGETS = ["Under ₹1,500", "₹1,500 to 3,000", "₹3,000 to 6,000", "₹6,000+"];
-const LOOKS: Array<{ name: string; top: FlatKind; topc: string; botc: string }> = [
-  { name: "Earthy layers", top: "shirt", topc: "#b9714c", botc: "#d6c4a0" },
-  { name: "Clean basics", top: "tee", topc: "#ffffff", botc: "#2f3b5c" },
-  { name: "Street", top: "tee", topc: "#3a3b40", botc: "#7c8a5a" },
-  { name: "Smart casual", top: "shirt", topc: "#a9bedd", botc: "#6f747c" },
-  { name: "Festive", top: "kurta", topc: "#8a3f4c", botc: "#ede7da" },
-  { name: "Sporty", top: "polo", topc: "#4e8f88", botc: "#3a3b40" },
+/** Ways of dressing, shown as the colours each one lives in. No drawings: the real clothes come from your photos. */
+const LOOKS: Array<{ name: string; says: string; shades: string[] }> = [
+  { name: "Earthy layers", says: "Overshirts, linen, warm tones", shades: ["#b9714c", "#6b7340", "#d6c4a0", "#7a5232"] },
+  { name: "Clean basics", says: "Plain tees, dark denim", shades: ["#f5f5f2", "#2f3b5c", "#8a8a8a", "#1b1b1b"] },
+  { name: "Street", says: "Oversized, cargos, sneakers", shades: ["#3a3b40", "#7c8a5a", "#e9e6df", "#c4302b"] },
+  { name: "Smart casual", says: "Oxford shirts, chinos", shades: ["#a9bedd", "#1f2a52", "#cdb994", "#6f747c"] },
+  { name: "Festive", says: "Kurtas, rich colour", shades: ["#8a3f4c", "#c8a24a", "#1b6e66", "#ede7da"] },
+  { name: "Sporty", says: "Polos, joggers, trainers", shades: ["#4e8f88", "#3a3b40", "#f5f5f2", "#ec7a2a"] },
 ];
 const TOP_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
 const WAIST_SIZES = ["26", "28", "30", "32", "34", "36", "38", "40"];
@@ -135,13 +137,11 @@ function Welcome({ onNext }: { onNext: () => void }) {
     <Shell step={0} hero title="Should I buy this?"
       lead="Zero Q checks any piece on any store against your body, your colours, your budget and the clothes you already own. Then it answers."
       actions={<><button className="btn filled big" onClick={onNext}>Set up Zero Q</button><span className="su-note">About 2 minutes</span></>}>
-      <div className="su-collage" aria-hidden>
-        <div className="sc sc-b" style={{ background: "var(--butter)" }}><Flat kind="pants" fill="#d6c4a0" /></div>
-        <div className="sc sc-c" style={{ background: "var(--lav)" }}><Flat kind="shoe" fill="#ffffff" /></div>
-        <div className="sc sc-a" style={{ background: backdropOf("#b9714c") }}><Flat kind="shirt" fill="#b9714c" /></div>
-        <div className="sc-v"><span>91</span><em>Buy it</em></div>
-      </div>
-      <p className="su-fine">Your photos stay on this device and are shown only to the AI you connect.</p>
+      <ul className="su-facts">
+        <li className="f-sage"><Icon.photos /><div><b>Your photos stay on this device.</b><p>Only the AI you connect sees a photo, and only to read it.</p></div></li>
+        <li className="f-butter"><Icon.check /><div><b>Every answer shows its reasons.</b><p>Your colours, your budget, what you own, what buyers say.</p></div></li>
+        <li className="f-lav"><Icon.person /><div><b>No account. Nothing to sign up for.</b><p>Your data lives in this browser, or in a folder you choose.</p></div></li>
+      </ul>
     </Shell>
   );
 }
@@ -308,12 +308,20 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setP
   // A small picture of the face Zero Q knows you by.
   const pKey = found.portrait ? `${found.portrait.id}#${found.portrait.index}` : null;
   useEffect(() => {
-    if (!pKey || !found.portrait) return setPortrait(null);
+    if (!pKey || !found.portrait) {
+      // every photo read and no face in any of them: no picture of you to keep
+      if (photosRef.current.length && photosRef.current.every((y) => y.faces !== undefined)) deleteBlob(PORTRAIT_KEY);
+      return setPortrait(null);
+    }
     const x = photosRef.current.find((y) => y.url === found.portrait!.id);
     const f = x?.faces?.[found.portrait.index];
     if (!x || !f || !x.w || !x.h) return;
     let live = true;
-    cropTo(x.original ?? x.blob, portraitBox(f, x.w / x.h), 0).then((b) => live && setPortrait({ key: pKey, url: URL.createObjectURL(b) })).catch(() => {});
+    cropTo(x.original ?? x.blob, portraitBox(f, x.w / x.h), 0).then((b) => {
+      if (!live) return;
+      setPortrait({ key: pKey, url: URL.createObjectURL(b) });
+      putBlob(PORTRAIT_KEY, b); // the picture of you used across Zero Q: a real photo, not a drawing
+    }).catch(() => {});
     return () => { live = false; };
   }, [pKey]);
 
@@ -417,7 +425,7 @@ function PhotoStep({ photos, setPhotos, onBack, onNext }: { photos: Shot[]; setP
             <li><Icon.person /><span><b>One or two of just you</b>So Zero Q knows your face.</span></li>
             <li><Icon.group /><span><b>Group photos are welcome</b>It crops them to you.</span></li>
             <li><Icon.expand /><span><b>Full length is best</b>Head to toe shows the whole outfit.</span></li>
-            <li><Icon.check /><span><b>Your face stays here</b>It is matched on this device and never saved.</span></li>
+            <li><Icon.check /><span><b>Matched on this device</b>Finding your face sends nothing anywhere.</span></li>
           </ul>
         ) : null}
 
@@ -549,11 +557,11 @@ function TasteStep({ answers, setAnswers, err, onBack, onBuild, count }: { answe
           {LOOKS.map((l) => {
             const on = answers.looks?.includes(l.name) ?? false;
             return (
-              <button key={l.name} className="su-look" aria-pressed={on} onClick={() => flip("looks", l.name)} style={{ background: backdropOf(l.topc) === "var(--surface)" ? "var(--raised)" : backdropOf(l.topc) }}>
+              <button key={l.name} className="su-look" aria-pressed={on} onClick={() => flip("looks", l.name)}>
+                <span className="su-shades" aria-hidden>{l.shades.map((c) => <i key={c} style={{ background: c }} />)}</span>
                 {on && <span className="su-tick"><Icon.tick /></span>}
-                <span className="su-top"><Flat kind={l.top} fill={l.topc} /></span>
-                <span className="su-bot"><Flat kind="pants" fill={l.botc} /></span>
                 <b>{l.name}</b>
+                <span className="su-says">{l.says}</span>
               </button>
             );
           })}

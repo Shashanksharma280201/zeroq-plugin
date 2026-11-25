@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Category, WardrobeItem } from "@zq/core";
+import type { WardrobeItem } from "@zq/core";
 import { DISCOVERY_TTL, cachedDiscovery, discover, type Discovery, type DiscoverProgress, type Look, type SearchedPiece } from "../../lib/discover.ts";
 import { readCatalog } from "../../lib/catalog.ts";
 import { logEvent } from "../../lib/events.ts";
@@ -22,7 +22,7 @@ export function Explore({ origin, tabId, wardrobe }: { origin?: string; tabId?: 
   );
 }
 
-/** The card on Searched that leads here, with a peek at the colours waiting. */
+/** The card that leads here, with a peek at the colours waiting. */
 export function ExploreCard({ onOpen }: { onOpen: () => void }) {
   const [ideas, setIdeas] = useState<Ideas | null>(null);
   useEffect(() => { cachedIdeas().then(setIdeas); }, []);
@@ -30,7 +30,7 @@ export function ExploreCard({ onOpen }: { onOpen: () => void }) {
   return (
     <button className="explore-card" onClick={onOpen}>
       <span className="xc-art" aria-hidden>{(hexes?.length ? hexes : ["#66703e", "#9a4f2c", "#1b6e66", "#c8a24a", "#7a2234"]).map((h, i) => <i key={i} style={{ background: h }} />)}</span>
-      <span className="xc-txt"><b>Try something new</b><span>New pieces and outfits from stores you visit</span></span>
+      <span className="xc-txt"><b>Not sure what you want?</b><span>Try something new, picked for you</span></span>
       <Icon.chevronRight />
     </button>
   );
@@ -175,7 +175,7 @@ const KIND: Record<Idea["kind"], string> = { colour: "New colour", category: "Ne
 function IdeaCard({ idea, onOpen }: { idea: Idea; onOpen: (store: string) => void }) {
   return (
     <article className="idea" aria-label={`${idea.title}. ${idea.why}`}>
-      <div className="idea-art" style={{ background: idea.hex ?? "var(--surface)" }} aria-hidden><Glyph c={idea.category} light={isLight(idea.hex)} /></div>
+      <div className="idea-art" style={{ background: idea.hex ?? "var(--surface)" }} aria-hidden />
       <div className="idea-body">
         <div className="idea-top"><span className={`idea-kind k-${idea.kind}`}>{KIND[idea.kind]}</span>{idea.price && <span className="idea-price">{idea.price}</span>}</div>
         <h3>{idea.title}</h3>
@@ -230,25 +230,4 @@ function BrandNew({ origin, tabId }: { origin: string; tabId?: number }) {
       ) : <p className="hint">Nothing here is new for you and still a good fit. The ideas below look further.</p>)}
     </section>
   );
-}
-
-const isLight = (hex?: string) => {
-  if (!hex) return true;
-  const n = parseInt(hex.slice(1), 16);
-  return ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 > 150;
-};
-
-/** A simple silhouette of the kind of piece, drawn over its colour. */
-function Glyph({ c, light }: { c: Category; light: boolean }) {
-  const stroke = light ? "rgba(20,18,16,.55)" : "rgba(255,255,255,.75)";
-  const d: Record<string, string> = {
-    top: "M14 8 9 10 4 17l5 3 3-3v19h16V17l3 3 5-3-5-7-5-2c-1 3-3 5-6 5s-5-2-6-5Z",
-    outerwear: "M13 7 8 9 3 18l5 3 3-4v20h8V14l1-6M27 7l5 2 5 9-5 3-3-4v20h-8V14l-1-6",
-    bottom: "M11 6h18l2 32h-7l-4-23-4 23H9Z",
-    "one-piece": "M15 5h10l1 7 5 26H9l5-26Z",
-    footwear: "M6 26c4 0 7-3 9-7l6 2c3 1 7 3 12 4 2 0 3 2 3 4v3H6Z",
-    accessory: "M12 14h16l3 22H9Z M15 14c0-4 2-7 5-7s5 3 5 7",
-    other: "M14 8 9 10 4 17l5 3 3-3v19h16V17l3 3 5-3-5-7-5-2c-1 3-3 5-6 5s-5-2-6-5Z",
-  };
-  return <svg viewBox="0 0 40 42" width="44" height="46" fill="none" stroke={stroke} strokeWidth="1.8" strokeLinejoin="round"><path d={d[c] ?? d.other} /></svg>;
 }

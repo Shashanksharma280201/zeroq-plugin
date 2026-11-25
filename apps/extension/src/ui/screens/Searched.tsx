@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { DECISION_WORD, bestOutfit, colourNames, decisionFor, guessKind, type Category, type WardrobeItem } from "@zq/core";
-import { addItem, getBlob } from "../../lib/db.ts";
+import { DECISION_WORD, bestOutfit, budgetMax, colourNames, decisionFor, guessKind, oneToBuy, type Category, type WardrobeItem } from "@zq/core";
+import { addItem, getBlob, getMeta, setMeta } from "../../lib/db.ts";
 import { listRated, logEvent, onEvents, type RatedEntry } from "../../lib/events.ts";
 import { OutfitBoard, OutfitRow, ScoreDot, scoreTone } from "../components/Outfit.tsx";
-import { Icon, Page, Sheet, money, useBlobUrl, useHud } from "../components/kit.tsx";
+import { Icon, Page, Sheet, money, useBlobUrl, useHud, useProfile } from "../components/kit.tsx";
 
 type Filter = "all" | "good" | "bought";
 const FILTERS: Array<[Filter, string]> = [["all", "All"], ["good", "Worth buying"], ["bought", "Bought"]];
@@ -34,6 +34,7 @@ export function Searched({ wardrobe, top }: { wardrobe: WardrobeItem[]; top?: Re
         </div>
       ) : items ? (
         <>
+          <OneToBuy items={items} wardrobe={wardrobe} onOpen={setOpen} />
           <div className="chips" role="group" aria-label="Filter">
             {FILTERS.map(([k, label]) => (
               <button key={k} className="chip" aria-pressed={filter === k} onClick={() => (setFilter(k), setShown(20))}>{label} <span className="chip-n">{counts[k]}</span></button>
@@ -70,6 +71,47 @@ function Photo({ r, big }: { r: RatedEntry; big?: boolean }) {
 
 const host = (u?: string) => { try { return new URL(u ?? "").hostname.replace(/^www\./, "").split(".")[0]; } catch { return ""; } };
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+const SKIP_KEY = "oneToBuySkip";
+
+/**
+ * Out of everything you looked at lately and Zero Q said yes to, the one to
+ * buy. Looking at ten good things is not the goal; leaving with one is.
+ */
+function OneToBuy({ items, wardrobe, onOpen }: { items: RatedEntry[]; wardrobe: WardrobeItem[]; onOpen: (r: RatedEntry) => void }) {
+  const profile = useProfile();
+  const [skip, setSkip] = useState<string[] | null>(null);
+  useEffect(() => { getMeta<string[]>(SKIP_KEY).then((s) => setSkip(s ?? [])); }, []);
+  const one = useMemo(() => {
+    if (!skip || profile === undefined) return null;
+    const open = items.filter((r) => !r.bought && !r.hidden);
+    return oneToBuy(open.map((r) => ({ id: r.itemKey, score: r.score, price: r.price, pairs: outfitFor(r, wardrobe).pieces.length, ts: r.ts, r })), { budget: budgetMax(profile?.answers.budget), withinDays: 30, skip });
+  }, [items, wardrobe, skip, profile]);
+  if (!one || items.length < 2) return null;
+  const r = one.pick.r;
+  const notThis = () => {
+    const next = [...(skip ?? []), r.itemKey];
+    setSkip(next);
+    setMeta(SKIP_KEY, next);
+  };
+  return (
+    <section className="one" aria-label={`If you buy one thing: ${r.name}. ${one.why.join(". ")}.`}>
+      <button className="one-main" onClick={() => onOpen(r)}>
+        <Photo r={r} />
+        <span className="one-txt">
+          <span className="one-k"><Icon.sparkle />If you buy one thing</span>
+          <b>{r.name}</b>
+          <span className="one-meta">{[r.brand || host(r.url), r.price != null ? money(r.price, r.currency) : ""].filter(Boolean).join(" · ")}</span>
+        </span>
+      </button>
+      {one.why.length > 0 && <ul className="one-why">{one.why.map((w) => <li key={w}><Icon.tick />{w}</li>)}</ul>}
+      <div className="one-acts">
+        {r.url && <button className="btn filled small" onClick={() => chrome.tabs.create({ url: r.url! })}><Icon.bag />Go to the store</button>}
+        <button className="btn plain small" onClick={notThis}>Not this one</button>
+      </div>
+    </section>
+  );
+}
 
 function SearchedRow({ r, wardrobe, onOpen }: { r: RatedEntry; wardrobe: WardrobeItem[]; onOpen: () => void }) {
   const o = useMemo(() => outfitFor(r, wardrobe), [r, wardrobe]);

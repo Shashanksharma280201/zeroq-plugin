@@ -135,6 +135,14 @@ chrome.runtime.onMessage.addListener((msg: ToBackground, sender, reply) => {
     syncNow().then((s) => reply({ ok: true, state: s }), (e) => reply({ ok: false, error: e?.message ?? String(e) }));
     return true;
   }
+  if (msg.type === "panel-state") {
+    panelWindows().then((ws) => reply(sender.tab?.windowId != null && ws.includes(sender.tab.windowId)));
+    return true;
+  }
+  if (msg.type === "font") {
+    pageFont().then(reply, () => reply(null));
+    return true;
+  }
   if (msg.type === "mute-site") {
     getSettings().then((s) => {
       if (!s.mutedSites.includes(msg.host)) setSettings({ mutedSites: [...s.mutedSites, msg.host] });
@@ -143,6 +151,67 @@ chrome.runtime.onMessage.addListener((msg: ToBackground, sender, reply) => {
   }
   return false;
 });
+
+// ---------- is the side panel open? ----------
+// The panel keeps a line open to here for as long as it is showing. Pages in
+// its window are told when it opens and closes, so the pill and the score tag
+// can step aside while the answer is already on screen beside them.
+
+const PANELS = "panels";
+const panelPorts = new Map<number, Set<chrome.runtime.Port>>();
+// A fresh start has no lines open: forget what an earlier run left behind. Panels that are showing call again.
+const panelsCleared = chrome.storage.session.remove(PANELS).catch(() => {});
+
+async function panelWindows(): Promise<number[]> {
+  await panelsCleared;
+  return ((await chrome.storage.session.get(PANELS))[PANELS] as number[] | undefined) ?? [];
+}
+
+let panelChain: Promise<unknown> = Promise.resolve();
+function setPanel(windowId: number, open: boolean) {
+  panelChain = panelChain.then(async () => {
+    const ws = new Set(await panelWindows());
+    if (ws.has(windowId) === open) return;
+    open ? ws.add(windowId) : ws.delete(windowId);
+    await chrome.storage.session.set({ [PANELS]: [...ws] });
+    for (const t of await chrome.tabs.query({ windowId })) {
+      if (t.id != null) chrome.tabs.sendMessage(t.id, { type: "panel", open } satisfies ToContent).catch(() => {});
+    }
+  }).catch(() => {});
+}
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "panel") return;
+  let win: number | undefined;
+  port.onMessage.addListener((m: { windowId?: number }) => {
+    if (typeof m?.windowId !== "number" || win != null) return; // later messages only keep the line alive
+    win = m.windowId;
+    const set = panelPorts.get(win) ?? new Set();
+    set.add(port);
+    panelPorts.set(win, set);
+    setPanel(win, true);
+  });
+  port.onDisconnect.addListener(() => {
+    if (win == null) return;
+    const set = panelPorts.get(win);
+    set?.delete(port);
+    if (!set?.size) {
+      panelPorts.delete(win);
+      setPanel(win, false);
+    }
+  });
+});
+
+let fontB64: Promise<string> | null = null;
+function pageFont(): Promise<string> {
+  fontB64 ??= fetch(chrome.runtime.getURL("fonts/bricolage-grotesque-latin-opsz-normal.woff2")).then((r) => r.arrayBuffer()).then((buf) => {
+    const a = new Uint8Array(buf);
+    let s = "";
+    for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode(...a.subarray(i, i + 0x8000));
+    return btoa(s);
+  });
+  return fontB64;
+}
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   chrome.storage.session.remove([tabKey(tabId), pickKey(tabId)]);

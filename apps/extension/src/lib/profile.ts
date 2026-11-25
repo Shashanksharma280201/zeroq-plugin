@@ -155,6 +155,7 @@ export async function saveProfile(p: StyleProfile): Promise<void> {
 export async function clearProfile(): Promise<void> {
   await chrome.storage.local.remove("profile");
   for (let i = 0; i < 8; i++) await deleteBlob(`outfit:${i}`);
+  await deleteBlob("me:portrait");
   await logEvent("profile_built", { profile: null, photos: [] });
 }
 export function onProfile(fn: (p: StyleProfile | null) => void): () => void {

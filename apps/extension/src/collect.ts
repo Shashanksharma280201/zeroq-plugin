@@ -1,5 +1,6 @@
 import { bestFromSrcset } from "@zq/core";
 import type { CollectState, ToBackground, ToContent } from "./lib/messages.ts";
+import { PAGE_FONT, pageFont } from "./onpage.ts";
 import { candidateAt } from "./pick.ts";
 
 /**
@@ -28,12 +29,13 @@ function ensureHost() {
   if (host) return;
   host = document.createElement("zeroq-collect");
   host.style.cssText = "all:initial;position:fixed;inset:0;z-index:2147483646;pointer-events:none;";
+  pageFont();
   root = host.attachShadow({ mode: "closed" });
   root.innerHTML = `
 <style>
   * { box-sizing: border-box; }
   :host { --ground: #faf9f6; --ink: #2a2927; --muted: #6b675f; --surface: #f1efea; --lav: #e3dff1; --lav-ink: #4f4585; --sage: #dde6d8; --sage-ink: #3f5a3d; --blush-ink: #86443b;
-    --f: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+    --f: ${PAGE_FONT}; }
   .ring { position: fixed; border-radius: 18px; box-shadow: 0 0 0 3px var(--ground), 0 0 0 6px var(--lav-ink); opacity: 0; transform: scale(.98);
     transition: left .22s cubic-bezier(.32,.72,0,1), top .22s cubic-bezier(.32,.72,0,1), width .22s cubic-bezier(.32,.72,0,1), height .22s cubic-bezier(.32,.72,0,1), opacity .15s, transform .25s ${SPRING}; }
   .ring.on { opacity: 1; transform: none; }
@@ -53,7 +55,7 @@ function ensureHost() {
   .tray.on { transform: translate(-50%, 0); }
   .tray.shake { animation: shake .4s; }
   @keyframes shake { 20% { transform: translate(calc(-50% - 7px), 0); } 45% { transform: translate(calc(-50% + 6px), 0); } 70% { transform: translate(calc(-50% - 3px), 0); } }
-  .brand { font: italic 400 21px/1 "Fraunces", ui-serif, Georgia, serif; white-space: nowrap; }
+  .brand { font: 600 19px/1 var(--f); letter-spacing: -.03em; white-space: nowrap; }
   .msg { font: 500 14px/1.3 var(--f); white-space: nowrap; min-width: 150px; }
   .msg b { font-weight: 700; font-variant-numeric: tabular-nums; display: inline-block; }
   .msg b.bump { animation: bump .45s ${SPRING}; }

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { MemoryView } from "../components/MemoryView.tsx";
 import { clearProfile, saveProfile, type StyleProfile } from "../../lib/profile.ts";
-import { Avatar } from "../components/Avatar.tsx";
-import { Page, Switch, transition, useHud, useProfile } from "../components/kit.tsx";
+import { useMePhoto } from "../components/MePhoto.tsx";
+import { Icon, Page, Switch, transition, useHud, useProfile } from "../components/kit.tsx";
 import { Onboarding } from "./Setup.tsx";
 
 export function Style({ trailing, onMode }: { trailing?: React.ReactNode; /** told when setup starts and ends, so the page can hide its bars */ onMode?: (onboarding: boolean) => void } = {}) {
@@ -22,7 +22,7 @@ export function Style({ trailing, onMode }: { trailing?: React.ReactNode; /** to
 /** Your best colours as one continuous band: the profile's signature. */
 function PaletteBand({ p }: { p: StyleProfile }) {
   if (!p.palette.best.length) return null;
-  return <div className="palette-band" aria-label={`Your colours: ${p.palette.best.map((s) => s.name).join(", ")}`}>{p.palette.best.map((s) => <i key={s.hex + s.name} style={{ background: s.hex }} />)}</div>;
+  return <div className="palette-band" role="img" aria-label={`Your colours: ${p.palette.best.map((s) => s.name).join(", ")}`}>{p.palette.best.map((s) => <i key={s.hex + s.name} style={{ background: s.hex }} />)}</div>;
 }
 
 function ProfileDetails({ p }: { p: StyleProfile }) {
@@ -68,10 +68,11 @@ function ProfileDetails({ p }: { p: StyleProfile }) {
 
 function ProfileView({ p, onRedo, trailing }: { p: StyleProfile; onRedo: () => void; trailing?: React.ReactNode }) {
   const hud = useHud();
+  const me = useMePhoto();
   return (
     <Page title="Me" trailing={trailing}>
       <div className="profile-hero">
-        <div className="onb-stage small"><Avatar a={p.avatar} size={96} /></div>
+        <div className="me-big">{me ? <img src={me} alt="You" /> : <Icon.person />}</div>
         <div>
           <div className="greeting" style={{ fontSize: 30, margin: 0 }}>{p.styleName}</div>
           <p className="meta">{p.summary}</p>

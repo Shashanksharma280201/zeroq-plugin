@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { DECISION_WORD, decisionFor, type WardrobeItem } from "@zq/core";
 import { HudProvider, Icon, transition, useProfile, useSettings, useWardrobe } from "./components/kit.tsx";
 import { DataHomeSheet, FolderBanner, useFolderAutosave } from "./components/DataHome.tsx";
-import { Avatar } from "./components/Avatar.tsx";
+import { MePhoto } from "./components/MePhoto.tsx";
 import { ScoreDot } from "./components/Outfit.tsx";
 import { cachedRating } from "./components/Rating.tsx";
 import { Searched } from "./screens/Searched.tsx";
-import { Explore, ExploreCard } from "./screens/Explore.tsx";
+import { Explore } from "./screens/Explore.tsx";
+import { Find, FindBar } from "./screens/Find.tsx";
 import { Settings } from "./screens/Settings.tsx";
 import { Style } from "./screens/Style.tsx";
 import { ThisItem, useActiveProduct } from "./screens/ThisItem.tsx";
@@ -16,11 +17,11 @@ import { Wardrobe } from "./screens/Wardrobe.tsx";
 /**
  * Two tabs: Searched (everything you asked about, each with an outfit) and
  * Wardrobe (everything you own, each with an outfit). On a shop page the
- * "Should I buy this?" answer opens on top. Profile and settings live behind
- * your avatar.
+ * "Should I buy this?" answer opens on top. "Find it for me" starts from the
+ * top of Searched. Profile and settings live behind your avatar.
  */
 type Tab = "searched" | "wardrobe";
-type Over = null | "item" | "me" | "settings" | "explore";
+type Over = null | "item" | "me" | "settings" | "explore" | "find";
 type Surface = "sidepanel" | "app";
 
 export function App({ surface }: { surface: Surface }) {
@@ -30,7 +31,7 @@ export function App({ surface }: { surface: Surface }) {
   useFolderAutosave(settings);
   const hash = location.hash.slice(1);
   const [tab, setTab] = useState<Tab>(hash === "wardrobe" || hash === "today" ? "wardrobe" : "searched");
-  const [over, setOver] = useState<Over>(hash === "settings" ? "settings" : hash === "style" || hash === "you" || hash === "setup" ? "me" : null);
+  const [over, setOver] = useState<Over>(hash === "settings" ? "settings" : hash === "find" ? "find" : hash === "style" || hash === "you" || hash === "setup" ? "me" : null);
   const [garment, setGarment] = useState<Garment | null>(null);
   const active = useActiveProduct();
   const go = (t: Tab) => transition(() => (setTab(t), setOver(null)));
@@ -62,7 +63,7 @@ export function App({ surface }: { surface: Surface }) {
       <div className={`shell two ${setup ? "setup-mode" : ""}`}>
         {!setup && <header className="topbar">
           {over && !(over === "me" && !profile) ? (
-            <button className="back" onClick={() => open(over === "settings" && profile ? "me" : null)} aria-label="Back"><Icon.chevronLeft /><span>{over === "settings" && profile ? "Me" : tab === "wardrobe" ? "Wardrobe" : "Searched"}</span></button>
+            <button className="back" onClick={() => open(over === "settings" && profile ? "me" : over === "explore" ? "find" : null)} aria-label="Back"><Icon.chevronLeft /><span>{over === "settings" && profile ? "Me" : over === "explore" ? "Find" : tab === "wardrobe" ? "Wardrobe" : "Searched"}</span></button>
           ) : (
             <div className="brand">Zero Q</div>
           )}
@@ -70,7 +71,7 @@ export function App({ surface }: { surface: Surface }) {
             {over === "me" && profile && <button className="icon-btn" aria-label="Settings" onClick={() => open("settings")}><Icon.gear /></button>}
             {over == null && (
               <button className="me-btn" aria-label="You and settings" onClick={() => open("me")}>
-                {profile ? <span className="me-av"><Avatar a={profile.avatar} size={30} /></span> : <Icon.face />}
+                {profile ? <MePhoto size={36} /> : <Icon.face />}
               </button>
             )}
           </div>
@@ -85,8 +86,10 @@ export function App({ surface }: { surface: Surface }) {
             <Settings wardrobe={wardrobe} surface={surface} />
           ) : over === "explore" ? (
             <Explore origin={origin} tabId={active.tabId} wardrobe={wardrobe} />
+          ) : over === "find" ? (
+            <Find origin={origin} tabId={active.tabId} wardrobe={wardrobe} onExplore={() => open("explore")} />
           ) : tab === "searched" ? (
-            <Searched wardrobe={wardrobe} top={<>{now}{profile && <ExploreCard onOpen={() => open("explore")} />}</>} />
+            <Searched wardrobe={wardrobe} top={<>{profile && <FindBar onOpen={() => open("find")} />}{now}</>} />
           ) : (
             <Wardrobe wardrobe={wardrobe} onTryOn={tryItem} top={now} />
           )}

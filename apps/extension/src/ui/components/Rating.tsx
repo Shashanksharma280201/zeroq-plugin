@@ -1,6 +1,6 @@
 import { aiReady, PROVIDER_NAME } from "../../lib/settings.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DECISION_WORD, decisionFor, deltaE, isStretchPick, mySizeFor, pageFacts, quickFacts, retrieveEvents, stretchFor, type Decision, type FeedbackReason, type FeedbackVerdict, type ItemSnapshot, type ProductDetails, type WardrobeItem } from "@zq/core";
+import { DECISION_WORD, decisionFor, deltaE, isStretchPick, mySizeFor, pageFacts, quickFacts, retrieveEvents, stretchFor, type Decision, type Fact, type FeedbackReason, type FeedbackVerdict, type ItemSnapshot, type ProductDetails, type WardrobeItem } from "@zq/core";
 import { getMemory, listEvents, logEvent } from "../../lib/events.ts";
 import { downscale, hashBlob, srcToBlob } from "../../lib/images.ts";
 import { putBlob } from "../../lib/db.ts";
@@ -165,7 +165,26 @@ const FACT_ICON = { style: Icon.tee, colour: Icon.drop, budget: Icon.rupee, pair
 const PAGE_ICON = { size: Icon.ruler, fabric: Icon.fabric, reviews: Icon.star, price: Icon.tag } as const;
 export const DecisionMark = ({ d }: { d: Decision }) => (d === "buy" ? <Icon.tick /> : d === "wait" ? <Icon.wave /> : <Icon.cross />);
 
+/** The reasons as pictures: each fact is an icon with a tick or a cross. */
+export function FactList({ facts }: { facts: Fact[] }) {
+  if (!facts.length) return null;
+  return (
+    <ul className="v-facts">
+      {facts.map((f) => {
+        const I = FACT_ICON[f.key];
+        return (
+          <li key={f.key} className={f.good ? "yes" : "no"}>
+            <span className="v-ic"><I /><i aria-hidden>{f.good ? <Icon.tick /> : <Icon.cross />}</i></span>
+            <span>{f.label}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function RatingResult({ r, profile, wardrobe, onTryOn, onRedo, ctx, stretchOn, details }: { r: Rating; profile: StyleProfile; wardrobe: WardrobeItem[]; onTryOn?: (c: string) => void; onRedo: () => void; ctx: ItemContext & { url: string }; stretchOn: boolean; details?: ProductDetails }) {
+
   const memory = useMemory();
   const stretch = useMemo(() => (stretchOn && r.facts ? stretchFor(r.facts, scoreProfile(profile), r.wf, memory, r) : null), [r, memory, stretchOn]);
   const pairs = r.wardrobe.pairsWith.map((id) => wardrobe.find((w) => w.id === id)).filter(Boolean) as WardrobeItem[];
@@ -185,19 +204,7 @@ function RatingResult({ r, profile, wardrobe, onTryOn, onRedo, ctx, stretchOn, d
             <p className="v-line">{r.headline}</p>
           </div>
         </div>
-        {facts.length > 0 && (
-          <ul className="v-facts">
-            {facts.map((f) => {
-              const I = FACT_ICON[f.key];
-              return (
-                <li key={f.key} className={f.good ? "yes" : "no"}>
-                  <span className="v-ic"><I /><i aria-hidden>{f.good ? <Icon.tick /> : <Icon.cross />}</i></span>
-                  <span>{f.label}</span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <FactList facts={facts} />
       </section>
 
       {isStretchPick(stretch) && <StretchNote s={stretch} r={r} ctx={ctx} />}

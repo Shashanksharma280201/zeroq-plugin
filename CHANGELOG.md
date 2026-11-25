@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0 (2026-11-26)
+
+- Find it for me. At the top of Searched, say what you are looking for: type it ("black oversized tee under 800") or tap a kind of piece, colours and a price. Zero Q looks through the stores you visit and the store open beside it, keeps what fits, and ends on one pick with its score, its reasons as ticks and crosses, and the outfit it makes with what you own. "Not for me, next" moves the next option up.
+- It is honest about what it could not find. With nothing in the colour you asked for, it offers the closest colours and says so. With nothing at all, it says so and opens the same search on Myntra, Ajio, Amazon and Flipkart.
+- The one to buy. When you have looked at a few pieces, Searched names the single best one to buy, with why: highest score, inside your budget, goes with what you own. "Not this one" moves to the next best.
+- The score card on the page is now a small tag that sits on its own photo. It moves with the photo and leaves the screen when the photo does, so it no longer sticks in one place over other products. A new answer shows its reason for a few seconds, then folds down to the score.
+- The tag and the pill step aside while the side panel is open, and come back when you close it. The answer is already on screen in the panel.
+- The pill folds down to a small badge after a few seconds, and opens again when you point at it.
+- New typeface: Bricolage Grotesque, everywhere, including what Zero Q draws on store pages. Scores, verdicts and titles are set large and semibold; everything else small and regular. It replaces Fraunces and Figtree, and the unused font files are gone from the download.
+- Everything on the page (pill, tag, pick mode, the photo tray) now uses the calm colours.
+- Real, not drawn. The cartoon figure is gone: you are shown as a photo of you, cropped from your own outfit photos during setup. The drawn clothes are gone from the welcome screen, the taste step and the ideas list. Ways of dressing are shown as colour cards. The welcome screen no longer shows a made-up score on a made-up shirt; it says three true things about your photos, the reasons behind every answer, and having no account.
+- Every option in Find it for me says where its score came from: "Scored from its photo" or "An estimate from the listing text". Estimates are marked in the list.
+
 ## 0.6.0 (2026-11-24)
 
 - Add photos one way: drop them anywhere on the page, paste them, choose them, or tap them in Google Photos. Solo and group photos go in together. The separate "A group photo" button is gone.
